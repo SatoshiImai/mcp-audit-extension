@@ -33,6 +33,6 @@ implementations and the conformance contract are.
 
 ## Author
 
-Satoshi Imai — designed and implemented solo, 2026.
+Satoshi Imai
 
 Licensed under [MIT](LICENSE).
