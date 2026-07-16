@@ -9,7 +9,7 @@ artifact is the hash chain, not the infrastructure.
 
 from dataclasses import dataclass
 
-from a_mcp.canonical import canonicalize, sha256_hex
+from auditable_mcp.canonical import canonicalize, sha256_hex
 
 # The genesis link the first record chains from.
 GENESIS_HASH = '0' * 64

@@ -7,7 +7,7 @@ relative to this file, never the working directory.
 
 from pathlib import Path
 
-# python/src/a_mcp/paths.py -> parents[3] is the repository root.
+# python/src/auditable_mcp/paths.py -> parents[3] is the repository root.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 SPEC_SCHEMA_DIR = _REPO_ROOT / 'spec' / 'schema'

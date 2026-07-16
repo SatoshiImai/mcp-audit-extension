@@ -8,8 +8,8 @@ so a single tampered field breaks the anchored digest -- that is the tamper proo
 
 from dataclasses import dataclass
 
-from a_mcp.ledger import GENESIS_HASH, SealedRecord, compute_record_hash
-from a_mcp.schema import validate_event
+from auditable_mcp.ledger import GENESIS_HASH, SealedRecord, compute_record_hash
+from auditable_mcp.schema import validate_event
 
 
 @dataclass

@@ -1,14 +1,14 @@
 import { z } from 'zod/v4';
 import { ACTION_TYPE_RE } from './actionType.js';
 
-// A-MCP core audit event — single schema for Level 1 & Level 2 (design §3.1 INV-1).
+// Auditable MCP core audit event — single schema for Level 1 & Level 2 (design §3.1 INV-1).
 // Trust-establishing fields (sequence/key_id/signature) are optional at the schema level
 // so a Level-1 event (no signature) still validates as a Level-2 event: L1 ⊆ L2.
 
-export const SPEC_VERSION = 'a-mcp/0.1';
+export const SPEC_VERSION = 'auditable-mcp/0.1';
 
 // Tool-internal events emit only attempted/success/failed/aborted.
-// denied/expired are Tyr CallTool-boundary outcomes, not A-MCP internal responses (§5).
+// denied/expired are Tyr CallTool-boundary outcomes, not Auditable MCP internal responses (§5).
 export const OUTCOME = ['attempted', 'success', 'failed', 'aborted'] as const;
 export type Outcome = (typeof OUTCOME)[number];
 

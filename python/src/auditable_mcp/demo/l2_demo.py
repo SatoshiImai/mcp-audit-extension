@@ -1,23 +1,23 @@
 """L2 walkthrough: signature (non-repudiation) + sequence + reconciliation.
 
 Blocking is on LIES into the ledger, never on the tool's domain action.
-Run: ``PYTHONPATH=src python -m a_mcp.demo.l2_demo``.
+Run: ``PYTHONPATH=src python -m auditable_mcp.demo.l2_demo``.
 """
 
 import logging
 
-from a_mcp.amcp import AmcpSession, DeterministicDeps
-from a_mcp.capability import AuditCapability
-from a_mcp.customer_db_tool import CustomerDbTool
-from a_mcp.host import AuditHost
-from a_mcp.in_process import InProcessTransport
-from a_mcp.l2.keys import KeyRegistry, ToolKey, generate_tool_key
-from a_mcp.l2.reconcile import BoundaryObserver, reconcile
-from a_mcp.l2.signing import Ed25519Signer, sign_event
-from a_mcp.ledger import SealedRecord
-from a_mcp.verify import verify_ledger
+from auditable_mcp.amcp import AmcpSession, DeterministicDeps
+from auditable_mcp.capability import AuditCapability
+from auditable_mcp.customer_db_tool import CustomerDbTool
+from auditable_mcp.host import AuditHost
+from auditable_mcp.in_process import InProcessTransport
+from auditable_mcp.l2.keys import KeyRegistry, ToolKey, generate_tool_key
+from auditable_mcp.l2.reconcile import BoundaryObserver, reconcile
+from auditable_mcp.l2.signing import Ed25519Signer, sign_event
+from auditable_mcp.ledger import SealedRecord
+from auditable_mcp.verify import verify_ledger
 
-logger = logging.getLogger('a_mcp.demo')
+logger = logging.getLogger('auditable_mcp.demo')
 _RULE = '─' * 74
 _ZERO_HASH = f'sha256:{"0" * 64}'
 L2_CAP = AuditCapability(level='L2')
@@ -40,7 +40,7 @@ def _attempt_for(key: ToolKey, seq: int, ref: str) -> dict:
     """Build and sign an attempt event with an explicit sequence."""
     base = {
         'id': f'00000000-0000-4000-8000-{seq + 1:012x}',
-        'spec_version': 'a-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1',
         'ts': '2026-07-16T00:00:00.000Z',
         'call_id': 'call_adv',
         'action_type': 'db.write',
@@ -58,7 +58,7 @@ def main() -> None:
     """Run the five L2 demonstration scenarios."""
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     logger.info(_RULE)
-    logger.info('A-MCP L2 PoC (Python) — signature (non-repudiation) + sequence + reconciliation')
+    logger.info('Auditable MCP L2 PoC (Python) — signature (non-repudiation) + sequence + reconciliation')
     logger.info("Blocking is on LIES into the ledger, never on the tool's domain action.")
     logger.info(_RULE)
 
@@ -90,7 +90,7 @@ def main() -> None:
     h3 = AuditHost('acme#adv', L2_CAP, registry)
     unsigned = {
         'id': '00000000-0000-4000-8000-0000000000aa',
-        'spec_version': 'a-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1',
         'ts': '2026-07-16T00:00:00.000Z',
         'call_id': 'call_adv',
         'action_type': 'db.write',

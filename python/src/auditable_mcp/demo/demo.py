@@ -1,20 +1,20 @@
 """L1 end-to-end walkthrough: tool-internal self-attestation -> tamper-evident ledger.
 
-Run: ``PYTHONPATH=src python -m a_mcp.demo.demo``. Integrity failures shown are deliberate
+Run: ``PYTHONPATH=src python -m auditable_mcp.demo.demo``. Integrity failures shown are deliberate
 demonstrations of detection.
 """
 
 import logging
 
-from a_mcp.amcp import AmcpBlockedError, AmcpSession, DeterministicDeps
-from a_mcp.customer_db_tool import CustomerDbTool
-from a_mcp.demo.scenario import run_clean_scenario
-from a_mcp.host import AuditHost
-from a_mcp.in_process import InProcessTransport
-from a_mcp.ledger import SealedRecord
-from a_mcp.verify import verify_ledger
+from auditable_mcp.amcp import AmcpBlockedError, AmcpSession, DeterministicDeps
+from auditable_mcp.customer_db_tool import CustomerDbTool
+from auditable_mcp.demo.scenario import run_clean_scenario
+from auditable_mcp.host import AuditHost
+from auditable_mcp.in_process import InProcessTransport
+from auditable_mcp.ledger import SealedRecord
+from auditable_mcp.verify import verify_ledger
 
-logger = logging.getLogger('a_mcp.demo')
+logger = logging.getLogger('auditable_mcp.demo')
 _RULE = '─' * 72
 _ZERO_HASH = f'sha256:{"0" * 64}'
 
@@ -47,7 +47,7 @@ def main() -> None:
     """Run the five L1 demonstration scenarios."""
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     logger.info(_RULE)
-    logger.info('A-MCP L1 PoC (Python) — tool-internal self-attestation -> tamper-evident ledger')
+    logger.info('Auditable MCP L1 PoC (Python) — tool-internal self-attestation -> tamper-evident ledger')
     logger.info(_RULE)
 
     host = run_clean_scenario()
@@ -74,7 +74,7 @@ def main() -> None:
     tool4.get_customer('c_1')
     replay = {
         'id': '00000000-0000-4000-8000-000000000001',
-        'spec_version': 'a-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1',
         'ts': '2026-07-16T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.write',

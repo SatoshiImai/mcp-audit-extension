@@ -2,9 +2,9 @@
 
 import pytest
 
-from a_mcp.amcp import AmcpBlockedError, AmcpSession, DeterministicDeps
-from a_mcp.host import AuditHost
-from a_mcp.in_process import InProcessTransport
+from auditable_mcp.amcp import AmcpBlockedError, AmcpSession, DeterministicDeps
+from auditable_mcp.host import AuditHost
+from auditable_mcp.in_process import InProcessTransport
 
 
 def _session(host: AuditHost) -> AmcpSession:

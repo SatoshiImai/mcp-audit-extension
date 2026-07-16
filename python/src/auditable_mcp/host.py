@@ -8,12 +8,12 @@ record gets rejected and never pollutes the chain (design §0, §6.1).
 
 from dataclasses import dataclass
 
-from a_mcp.capability import DEFAULT_L1_CAPABILITY, AuditCapability
-from a_mcp.l2.keys import KeyRegistry
-from a_mcp.l2.signing import verify_event_signature
-from a_mcp.ledger import Ledger, SealedRecord
-from a_mcp.schema import validate_event
-from a_mcp.transport import AttemptResponse, accept, reject, unavailable
+from auditable_mcp.capability import DEFAULT_L1_CAPABILITY, AuditCapability
+from auditable_mcp.l2.keys import KeyRegistry
+from auditable_mcp.l2.signing import verify_event_signature
+from auditable_mcp.ledger import Ledger, SealedRecord
+from auditable_mcp.schema import validate_event
+from auditable_mcp.transport import AttemptResponse, accept, reject, unavailable
 
 
 @dataclass

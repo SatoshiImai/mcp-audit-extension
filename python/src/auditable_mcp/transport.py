@@ -8,7 +8,7 @@ implementation zero-waste versus a later MCP-backed transport.
 from dataclasses import dataclass
 from typing import Protocol
 
-from a_mcp.capability import AuditCapability
+from auditable_mcp.capability import AuditCapability
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,7 @@
 [project]
-name = "a-mcp"
+name = "auditable-mcp"
 version = "0.1.0"
-description = "A-MCP Python reference implementation (mirror of the TypeScript reference)"
+description = "Auditable MCP Python reference implementation (mirror of the TypeScript reference)"
 requires-python = ">=3.12"
 dependencies = ["cryptography", "jsonschema"]
 

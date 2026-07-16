@@ -11,7 +11,7 @@ import base64
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
-from a_mcp.canonical import canonicalize
+from auditable_mcp.canonical import canonicalize
 
 
 def _signature_input(event: dict) -> bytes:

@@ -1,4 +1,4 @@
-"""A-MCP Python reference implementation.
+"""Auditable MCP Python reference implementation.
 
 Mirror of the TypeScript reference. Both validate against the shared, language-neutral
 JSON Schema and conformance vectors under the repository ``spec/`` directory.

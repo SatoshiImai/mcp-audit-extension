@@ -7,9 +7,9 @@ cross-language contract that makes the Python mirror verifiable.
 
 import json
 
-from a_mcp.canonical import canonicalize, sha256_hex
-from a_mcp.ledger import GENESIS_HASH, compute_record_hash
-from a_mcp.paths import SPEC_VECTORS_DIR
+from auditable_mcp.canonical import canonicalize, sha256_hex
+from auditable_mcp.ledger import GENESIS_HASH, compute_record_hash
+from auditable_mcp.paths import SPEC_VECTORS_DIR
 
 
 def _load(name: str) -> object:

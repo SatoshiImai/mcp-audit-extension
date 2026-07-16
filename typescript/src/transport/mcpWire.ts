@@ -5,7 +5,7 @@ import { z } from 'zod/v4';
 import { RequestSchema, NotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import { auditEventSchema } from '../schema/event.js';
 
-// A-MCP wire methods on the MCP protocol. audit/attempt is a server→client REQUEST (the
+// Auditable MCP wire methods on the MCP protocol. audit/attempt is a server→client REQUEST (the
 // elicitation-shaped, blocking, fail-closed primitive); audit/outcome is a server→client
 // NOTIFICATION (design §6). We reuse the elicitation WIRE FORM, not its HITL semantics.
 

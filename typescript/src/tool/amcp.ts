@@ -4,7 +4,7 @@ import { hashParams } from '../ledger/canonical.js';
 import type { AttemptResponse, AuditTransport } from '../transport/transport.js';
 import type { EventSigner } from '../l2/signing.js';
 
-// Tool-side A-MCP library. Implements audit-before-act: emit `attempt`, await a durable
+// Tool-side Auditable MCP library. Implements audit-before-act: emit `attempt`, await a durable
 // accept, only THEN perform the internal domain action, then emit the outcome. If the
 // record is rejected (a lie) or unavailable (infra), the action is not performed —
 // fail-closed on record completeness, not on action authorization (design §6.1).

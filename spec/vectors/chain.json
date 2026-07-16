@@ -3,7 +3,7 @@
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000001",
-        "spec_version": "a-mcp/0.1",
+        "spec_version": "auditable-mcp/0.1",
         "ts": "1970-01-01T00:16:41.000Z",
         "call_id": "call_abc",
         "action_type": "db.read",
@@ -20,12 +20,12 @@
       "seq": 0,
       "host_ts": "host-ts:1",
       "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-      "record_hash": "54ae69f991f13f83c2016008fb089347de1f9359ac9a7a3b8e8a553d6be0155d"
+      "record_hash": "6f5c5a007f1136a79508353fd4d829a8491e8e34ac12101489d15937b2d3c340"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000001",
-        "spec_version": "a-mcp/0.1",
+        "spec_version": "auditable-mcp/0.1",
         "ts": "1970-01-01T00:16:41.000Z",
         "call_id": "call_abc",
         "action_type": "db.read",
@@ -41,13 +41,13 @@
       },
       "seq": 1,
       "host_ts": "host-ts:2",
-      "prev_hash": "54ae69f991f13f83c2016008fb089347de1f9359ac9a7a3b8e8a553d6be0155d",
-      "record_hash": "41916c17fe75a31e0951119a8e2d5a907381b16947343eed0a42df59f9a3b175"
+      "prev_hash": "6f5c5a007f1136a79508353fd4d829a8491e8e34ac12101489d15937b2d3c340",
+      "record_hash": "29add4b35efd751401df4e8370bb7e442e42c6eb2dfc028c6c782798fcdfe61f"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000002",
-        "spec_version": "a-mcp/0.1",
+        "spec_version": "auditable-mcp/0.1",
         "ts": "1970-01-01T00:16:42.000Z",
         "call_id": "call_abc",
         "action_type": "db.write",
@@ -63,13 +63,13 @@
       },
       "seq": 2,
       "host_ts": "host-ts:3",
-      "prev_hash": "41916c17fe75a31e0951119a8e2d5a907381b16947343eed0a42df59f9a3b175",
-      "record_hash": "f11921d92443a0410bde4485df1e1d5b0eaa3acfef27e3cf8fa0816441fd4909"
+      "prev_hash": "29add4b35efd751401df4e8370bb7e442e42c6eb2dfc028c6c782798fcdfe61f",
+      "record_hash": "ef87f9f91e701eb37aa228d55893669ae91c89ea228785f8899179df6ddd843e"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000002",
-        "spec_version": "a-mcp/0.1",
+        "spec_version": "auditable-mcp/0.1",
         "ts": "1970-01-01T00:16:42.000Z",
         "call_id": "call_abc",
         "action_type": "db.write",
@@ -85,13 +85,13 @@
       },
       "seq": 3,
       "host_ts": "host-ts:4",
-      "prev_hash": "f11921d92443a0410bde4485df1e1d5b0eaa3acfef27e3cf8fa0816441fd4909",
-      "record_hash": "c62448dba8955b6b8f4299ed3798abfe2bacdab23597bd31b4ff24922ad51d50"
+      "prev_hash": "ef87f9f91e701eb37aa228d55893669ae91c89ea228785f8899179df6ddd843e",
+      "record_hash": "91e5b0c108abc8bcfb3264cf45401b0d81ea4323017c3c2746bf47de7f751021"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000003",
-        "spec_version": "a-mcp/0.1",
+        "spec_version": "auditable-mcp/0.1",
         "ts": "1970-01-01T00:16:43.000Z",
         "call_id": "call_abc",
         "action_type": "db.read",
@@ -107,13 +107,13 @@
       },
       "seq": 4,
       "host_ts": "host-ts:5",
-      "prev_hash": "c62448dba8955b6b8f4299ed3798abfe2bacdab23597bd31b4ff24922ad51d50",
-      "record_hash": "e12774488c39908d6c05c8dec4a973b265145390c1d5de49b771f53c874f7163"
+      "prev_hash": "91e5b0c108abc8bcfb3264cf45401b0d81ea4323017c3c2746bf47de7f751021",
+      "record_hash": "8a1ad69762330b9c793556f6602d7cb2569ffd44bb898e87b5022b08b3903549"
     },
     {
       "event": {
         "id": "00000000-0000-4000-8000-000000000003",
-        "spec_version": "a-mcp/0.1",
+        "spec_version": "auditable-mcp/0.1",
         "ts": "1970-01-01T00:16:43.000Z",
         "call_id": "call_abc",
         "action_type": "db.read",
@@ -129,9 +129,9 @@
       },
       "seq": 5,
       "host_ts": "host-ts:6",
-      "prev_hash": "e12774488c39908d6c05c8dec4a973b265145390c1d5de49b771f53c874f7163",
-      "record_hash": "5da2d14f4dd353f118287c072c498d137f1918f7e69e46705dd65efb877f30e4"
+      "prev_hash": "8a1ad69762330b9c793556f6602d7cb2569ffd44bb898e87b5022b08b3903549",
+      "record_hash": "e83450afebda74f204f6825563899ecec231ee43bc789e9e9f5605bf2f2478cc"
     }
   ],
-  "digest": "5da2d14f4dd353f118287c072c498d137f1918f7e69e46705dd65efb877f30e4"
+  "digest": "e83450afebda74f204f6825563899ecec231ee43bc789e9e9f5605bf2f2478cc"
 }

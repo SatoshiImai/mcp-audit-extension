@@ -9,7 +9,7 @@ import json
 
 from jsonschema import Draft202012Validator
 
-from a_mcp.paths import SPEC_SCHEMA_DIR
+from auditable_mcp.paths import SPEC_SCHEMA_DIR
 
 _event_schema = json.loads((SPEC_SCHEMA_DIR / 'audit-event.schema.json').read_text(encoding='utf-8'))
 _event_validator = Draft202012Validator(_event_schema)

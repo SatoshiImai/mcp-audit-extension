@@ -1,9 +1,9 @@
 {
-  "name": "a-mcp-poc",
+  "name": "auditable-mcp-poc",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A-MCP Level 1 self-attestation PoC (in-process transport; wire-shaped for later MCP SDK binding)",
+  "description": "Auditable MCP self-attestation PoC (in-process transport; wire-shaped for later MCP SDK binding)",
   "scripts": {
     "demo": "tsx src/demo/demo.ts",
     "demo:l2": "tsx src/demo/l2Demo.ts",

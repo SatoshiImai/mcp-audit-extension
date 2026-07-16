@@ -8,7 +8,7 @@ import { CANONICALIZATION_CASES, EVENT_CASES } from './fixtures.js';
 
 // Generate the committed golden vectors. Any independent implementation must reproduce
 // these byte-for-byte: canonical serialization, per-event hashes, and a full sealed chain
-// (sequence + prev_hash + record_hash + anchored digest). This is the A-MCP analogue of
+// (sequence + prev_hash + record_hash + anchored digest). This is the Auditable MCP analogue of
 // SEP-3004's conformance test vectors.
 
 interface CanonicalizationVector {

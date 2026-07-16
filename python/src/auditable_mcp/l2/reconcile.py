@@ -7,7 +7,7 @@ feeding governance (revisit the allowlist), not real-time control.
 
 from dataclasses import dataclass
 
-from a_mcp.ledger import SealedRecord
+from auditable_mcp.ledger import SealedRecord
 
 
 @dataclass

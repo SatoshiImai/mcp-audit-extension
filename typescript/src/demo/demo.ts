@@ -33,7 +33,7 @@ function printReport(label: string, records: readonly SealedRecord[], anchored?:
 
 async function main(): Promise<void> {
   line();
-  console.log('A-MCP L1 PoC — tool-internal self-attestation → tamper-evident ledger');
+  console.log('Auditable MCP L1 PoC — tool-internal self-attestation → tamper-evident ledger');
   line();
 
   // 1. Clean run: a first-party tool self-attests its internal db operations.
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   await tool4.getCustomer('c_1');
   const replay = {
     id: '00000000-0000-4000-8000-000000000001', // reuse the first attempt id
-    spec_version: 'a-mcp/0.1',
+    spec_version: 'auditable-mcp/0.1',
     ts: new Date(1001000).toISOString(),
     call_id: 'call_abc',
     action_type: 'db.write',

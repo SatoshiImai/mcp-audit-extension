@@ -1,7 +1,7 @@
 """Tests for the verifier: proof of non-tampering + completeness."""
 
-from a_mcp.demo.scenario import run_clean_scenario
-from a_mcp.verify import verify_ledger
+from auditable_mcp.demo.scenario import run_clean_scenario
+from auditable_mcp.verify import verify_ledger
 
 
 def test_clean_ledger_verifies() -> None:

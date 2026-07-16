@@ -5,7 +5,7 @@ records what the tool actually did inside -- the tool-internal granularity that 
 audit cannot see. Being first-party, its effect declarations are trusted (Level 1).
 """
 
-from a_mcp.amcp import AmcpSession
+from auditable_mcp.amcp import AmcpSession
 
 
 class CustomerDbTool:

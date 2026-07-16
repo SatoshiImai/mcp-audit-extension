@@ -1,9 +1,9 @@
 """Tests for reconciliation: boundary egress vs self-report."""
 
-from a_mcp.amcp import AmcpSession, DeterministicDeps
-from a_mcp.host import AuditHost
-from a_mcp.in_process import InProcessTransport
-from a_mcp.l2.reconcile import BoundaryObserver, reconcile
+from auditable_mcp.amcp import AmcpSession, DeterministicDeps
+from auditable_mcp.host import AuditHost
+from auditable_mcp.in_process import InProcessTransport
+from auditable_mcp.l2.reconcile import BoundaryObserver, reconcile
 
 STRIPE = 'https://api.stripe.com/v1/refunds'
 

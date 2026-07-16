@@ -11,7 +11,7 @@ import {
   type AuditOutcomeNotification,
 } from './mcpWire.js';
 
-// The tool server, typed so it can send the A-MCP methods to the client.
+// The tool server, typed so it can send the Auditable MCP methods to the client.
 export type AuditToolServer = Server<AuditAttemptRequest, AuditOutcomeNotification>;
 
 // McpTransport is the B2 drop-in: it speaks the real MCP wire (server→client request for

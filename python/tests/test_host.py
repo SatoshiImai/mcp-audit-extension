@@ -1,13 +1,13 @@
 """Tests for the L1 audit host: accept / reject / unavailable."""
 
-from a_mcp.host import AuditHost
+from auditable_mcp.host import AuditHost
 
 
 def _attempt(overrides: dict | None = None) -> dict:
     """Build a valid attempt event, optionally overriding fields."""
     event = {
         'id': '00000000-0000-4000-8000-000000000001',
-        'spec_version': 'a-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1',
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.write',

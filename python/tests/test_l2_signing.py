@@ -1,15 +1,15 @@
 """Tests for L2 signing and the L1 ⊆ L2 schema invariant."""
 
-from a_mcp.l2.keys import generate_tool_key
-from a_mcp.l2.signing import Ed25519Signer, sign_event, verify_event_signature
-from a_mcp.schema import validate_event
+from auditable_mcp.l2.keys import generate_tool_key
+from auditable_mcp.l2.signing import Ed25519Signer, sign_event, verify_event_signature
+from auditable_mcp.schema import validate_event
 
 
 def _base_event() -> dict:
     """Build a minimal valid (unsigned) event."""
     return {
         'id': '00000000-0000-4000-8000-000000000001',
-        'spec_version': 'a-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1',
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.write',

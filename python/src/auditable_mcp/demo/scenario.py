@@ -4,10 +4,10 @@ A first-party customer DB tool performs a few internal reads/writes; every opera
 self-attested and sealed.
 """
 
-from a_mcp.amcp import AmcpSession, DeterministicDeps
-from a_mcp.customer_db_tool import CustomerDbTool
-from a_mcp.host import AuditHost
-from a_mcp.in_process import InProcessTransport
+from auditable_mcp.amcp import AmcpSession, DeterministicDeps
+from auditable_mcp.customer_db_tool import CustomerDbTool
+from auditable_mcp.host import AuditHost
+from auditable_mcp.in_process import InProcessTransport
 
 
 def run_clean_scenario(partition: str = 'acme#2026-07-15') -> AuditHost:

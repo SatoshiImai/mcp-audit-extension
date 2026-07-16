@@ -2,7 +2,7 @@ import { auditEventSchema } from '../schema/event.js';
 import { GENESIS_HASH, computeRecordHash, type SealedRecord } from '../ledger/ledger.js';
 
 // Verifier — proves "non-tampered + complete" over a sealed ledger, the evidence artifact
-// A-MCP produces. It recomputes the hash chain, detects sequence gaps (loss), checks the
+// Auditable MCP produces. It recomputes the hash chain, detects sequence gaps (loss), checks the
 // anchored digest, and correlates attempts with outcomes. It trusts nothing but the bytes.
 
 export interface VerifyIssue {

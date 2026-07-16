@@ -1,6 +1,6 @@
 """Tests for action_type syntax validation and effect resolution."""
 
-from a_mcp.action_type import is_core, is_extension, is_syntactically_valid, resolve_effect
+from auditable_mcp.action_type import is_core, is_extension, is_syntactically_valid, resolve_effect
 
 
 def test_accepts_core_and_ext_tokens() -> None:

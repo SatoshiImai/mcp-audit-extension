@@ -35,7 +35,7 @@ function printLedger(records: readonly SealedRecord[]): void {
 function attemptFor(key: ToolKey, seq: number, ref: string): AuditEvent {
   const base: AuditEvent = {
     id: `00000000-0000-4000-8000-${(seq + 1).toString(16).padStart(12, '0')}`,
-    spec_version: 'a-mcp/0.1',
+    spec_version: 'auditable-mcp/0.1',
     ts: '2026-07-16T00:00:00.000Z',
     call_id: 'call_adv',
     action_type: 'db.write',
@@ -50,7 +50,7 @@ function attemptFor(key: ToolKey, seq: number, ref: string): AuditEvent {
 
 async function main(): Promise<void> {
   line();
-  console.log('A-MCP L2 PoC — signature (non-repudiation) + sequence + reconciliation');
+  console.log('Auditable MCP L2 PoC — signature (non-repudiation) + sequence + reconciliation');
   console.log('Blocking is on LIES into the ledger, never on the tool\'s domain action.');
   line();
 
@@ -87,7 +87,7 @@ async function main(): Promise<void> {
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
     const unsigned: AuditEvent = {
-      id: '00000000-0000-4000-8000-0000000000aa', spec_version: 'a-mcp/0.1', ts: '2026-07-16T00:00:00.000Z',
+      id: '00000000-0000-4000-8000-0000000000aa', spec_version: 'auditable-mcp/0.1', ts: '2026-07-16T00:00:00.000Z',
       call_id: 'call_adv', action_type: 'db.write', mutates: true, egress: false,
       target_resource: { kind: 'table', ref: 'customers' }, outcome: 'attempted', params_hash: `sha256:${'0'.repeat(64)}`,
     };

@@ -7,7 +7,7 @@ import { connectAuditPair } from './wiring.js';
 // B2 proof: the SAME tool, host, ledger, and verifier from B1 work over the real MCP wire
 // with only the transport swapped (InProcessTransport → McpTransport). The tool self-attests
 // its internal db ops via server→client audit/attempt requests during tools/call.
-describe('A-MCP over MCP wire (B2)', () => {
+describe('Auditable MCP over MCP wire (B2)', () => {
   it('seals tool-internal ops via audit/attempt over the wire and verifies', async () => {
     const host = new AuditHost('mcp#demo');
     const { client, close } = await connectAuditPair(host);

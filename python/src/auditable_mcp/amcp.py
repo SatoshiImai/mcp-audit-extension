@@ -1,4 +1,4 @@
-"""Tool-side A-MCP library: the audit-before-act discipline.
+"""Tool-side Auditable MCP library: the audit-before-act discipline.
 
 Emit ``attempt``, await a durable accept, only THEN perform the internal domain action, then
 emit the outcome. If the record is rejected (a lie) or unavailable (infra), the action is not
@@ -9,11 +9,11 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Protocol, TypeVar
 
-from a_mcp.action_type import resolve_effect
-from a_mcp.canonical import hash_params
-from a_mcp.transport import AuditTransport
+from auditable_mcp.action_type import resolve_effect
+from auditable_mcp.canonical import hash_params
+from auditable_mcp.transport import AuditTransport
 
-SPEC_VERSION = 'a-mcp/0.1'
+SPEC_VERSION = 'auditable-mcp/0.1'
 _BASE_EPOCH_SECONDS = 1000
 
 T = TypeVar('T')

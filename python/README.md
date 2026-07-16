@@ -1,4 +1,4 @@
-# A-MCP Python reference implementation
+# Auditable MCP Python reference implementation
 
 A mirror of the [TypeScript reference](../typescript). Both implementations validate against
 the **same** language-neutral JSON Schema (`../spec/schema/`) and conformance vectors
@@ -18,9 +18,9 @@ digest as the TypeScript demo for the same deterministic scenario.
 
 ## What it proves
 
-- `python -m a_mcp.demo.demo` (L1): clean run VERIFIED; tamper → `record-hash-mismatch` +
+- `python -m auditable_mcp.demo.demo` (L1): clean run VERIFIED; tamper → `record-hash-mismatch` +
   `digest-mismatch`; loss → `seq-gap`; replayed id → `reject`; unavailable → fail-closed.
-- `python -m a_mcp.demo.l2_demo` (L2): portable escalation (same tool + a signer); forgery →
+- `python -m auditable_mcp.demo.l2_demo` (L2): portable escalation (same tool + a signer); forgery →
   `signature-invalid`; unsigned → `l2-unsigned`; suppressed event → `sequence-gap`; suppressed
   egress → `unreported-egress` (reconciliation).
 
@@ -31,26 +31,26 @@ tool's domain action; the only thing it blocks is a **lie into the ledger**.
 
 | Path | Role |
 |------|------|
-| `src/a_mcp/canonical.py` | deterministic canonical JSON + hashing |
-| `src/a_mcp/action_type.py` | Core Enum + ext.* classify, effect fail-safe |
-| `src/a_mcp/schema.py` | validation against the shared JSON Schema (`jsonschema`) |
-| `src/a_mcp/ledger.py` | sequence + hash chain (sealed records) |
-| `src/a_mcp/transport.py` | wire-shaped `AuditTransport` protocol |
-| `src/a_mcp/in_process.py` | in-process transport |
-| `src/a_mcp/host.py` | audit subsystem: L1 accept/reject/unavailable + L2 verify/sequence |
-| `src/a_mcp/amcp.py` | audit-before-act session (± signer) |
-| `src/a_mcp/customer_db_tool.py` | dummy first-party tool |
-| `src/a_mcp/l2/` | Ed25519 signing, key registry, reconciliation |
-| `src/a_mcp/verify.py` | chain recompute, gap + tamper detection |
-| `src/a_mcp/demo/` | L1 and L2 walkthroughs |
+| `src/auditable_mcp/canonical.py` | deterministic canonical JSON + hashing |
+| `src/auditable_mcp/action_type.py` | Core Enum + ext.* classify, effect fail-safe |
+| `src/auditable_mcp/schema.py` | validation against the shared JSON Schema (`jsonschema`) |
+| `src/auditable_mcp/ledger.py` | sequence + hash chain (sealed records) |
+| `src/auditable_mcp/transport.py` | wire-shaped `AuditTransport` protocol |
+| `src/auditable_mcp/in_process.py` | in-process transport |
+| `src/auditable_mcp/host.py` | audit subsystem: L1 accept/reject/unavailable + L2 verify/sequence |
+| `src/auditable_mcp/amcp.py` | audit-before-act session (± signer) |
+| `src/auditable_mcp/customer_db_tool.py` | dummy first-party tool |
+| `src/auditable_mcp/l2/` | Ed25519 signing, key registry, reconciliation |
+| `src/auditable_mcp/verify.py` | chain recompute, gap + tamper detection |
+| `src/auditable_mcp/demo/` | L1 and L2 walkthroughs |
 
 ## Commands
 
 ```
 uv venv .venv && uv pip install --python .venv/bin/python cryptography jsonschema pytest ruff
 .venv/bin/pytest                                # 37 tests (incl. cross-language vectors + L2)
-PYTHONPATH=src .venv/bin/python -m a_mcp.demo.demo
-PYTHONPATH=src .venv/bin/python -m a_mcp.demo.l2_demo
+PYTHONPATH=src .venv/bin/python -m auditable_mcp.demo.demo
+PYTHONPATH=src .venv/bin/python -m auditable_mcp.demo.l2_demo
 .venv/bin/ruff check src tests                  # lint
 ```
 

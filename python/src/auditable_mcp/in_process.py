@@ -4,9 +4,9 @@ This is the only asset superseded when a later MCP-backed transport is swapped i
 survives as a fast test double. Everything above the transport interface is reused.
 """
 
-from a_mcp.capability import AuditCapability
-from a_mcp.host import AuditHost
-from a_mcp.transport import AttemptResponse
+from auditable_mcp.capability import AuditCapability
+from auditable_mcp.host import AuditHost
+from auditable_mcp.transport import AttemptResponse
 
 
 class InProcessTransport:

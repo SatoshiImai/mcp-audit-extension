@@ -1,6 +1,6 @@
-# A-MCP Level 1 PoC
+# Auditable MCP Level 1 PoC
 
-Reference implementation for **A-MCP** (Auditable MCP): a tool server self-attests its
+Reference implementation for **Auditable MCP**: a tool server self-attests its
 **internal** domain operations (DB reads/writes, downstream API calls) as first-class
 structured audit events, which the host anchors into a **tamper-evident ledger**.
 
@@ -81,7 +81,7 @@ ledger, and verifier are **byte-identical** across B1 and B2 — only the transp
 
 `npm run vectors` regenerates golden files under the repo-shared `../spec/vectors/` that any
 independent implementation (including the Python port) must reproduce byte-for-byte — the
-A-MCP analogue of SEP-3004's conformance vectors. The JSON Schema (`../spec/schema/`) and
+Auditable MCP analogue of SEP-3004's conformance vectors. The JSON Schema (`../spec/schema/`) and
 these vectors are the language-neutral contract both reference implementations validate against:
 
 - `canonicalization.json` — canonical serialization of primitives (key order, nesting, unicode, scalars).
