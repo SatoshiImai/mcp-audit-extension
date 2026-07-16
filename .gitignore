@@ -1,0 +1,6 @@
+# Work-in-progress design notes — internal, not part of the public proposal.
+# De-branded RFC content graduates OUT of wip/ into tracked files.
+wip/
+
+# Dependencies (reference implementations install locally)
+node_modules/

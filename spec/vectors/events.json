@@ -1,0 +1,88 @@
+[
+  {
+    "name": "db-read-minimal",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "spec_version": "a-mcp/0.1",
+      "ts": "2026-07-15T00:00:01.000Z",
+      "call_id": "call_abc",
+      "action_type": "db.read",
+      "mutates": false,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "attempted",
+      "params_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "canonical": "{\"action_type\":\"db.read\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000001\",\"mutates\":false,\"outcome\":\"attempted\",\"params_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"spec_version\":\"a-mcp/0.1\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:01.000Z\"}",
+    "sha256": "261937a6d8ba6a5b121c72c2cf0ed1d61e5155862b8e0db572378e772c479314"
+  },
+  {
+    "name": "db-write-with-trace-and-scope",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "spec_version": "a-mcp/0.1",
+      "ts": "2026-07-15T00:00:02.000Z",
+      "call_id": "call_abc",
+      "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers",
+        "scope_hint": "row:consent_basis=marketing"
+      },
+      "outcome": "success",
+      "params_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "canonical": "{\"action_type\":\"db.write\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000002\",\"mutates\":true,\"outcome\":\"success\",\"params_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"spec_version\":\"a-mcp/0.1\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\",\"scope_hint\":\"row:consent_basis=marketing\"},\"traceparent\":\"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01\",\"ts\":\"2026-07-15T00:00:02.000Z\"}",
+    "sha256": "98b6f348f81af31c3e4b3a708d9e918a4753c262b6eb16d1a2ad5c7f4431bde2"
+  },
+  {
+    "name": "ext-l2-signed-unicode",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "spec_version": "a-mcp/0.1",
+      "ts": "2026-07-15T00:00:03.000Z",
+      "call_id": "call_xyz",
+      "action_type": "ext.stripe.refund_charge",
+      "mutates": true,
+      "egress": true,
+      "target_resource": {
+        "kind": "endpoint",
+        "ref": "https://api.stripe.com/v1/refunds",
+        "scope_hint": "顧客:c_1"
+      },
+      "outcome": "attempted",
+      "params_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sequence": 42,
+      "key_id": "tool-key-2026",
+      "signature": "ZmFrZS1zaWduYXR1cmU="
+    },
+    "canonical": "{\"action_type\":\"ext.stripe.refund_charge\",\"call_id\":\"call_xyz\",\"egress\":true,\"id\":\"00000000-0000-4000-8000-000000000003\",\"key_id\":\"tool-key-2026\",\"mutates\":true,\"outcome\":\"attempted\",\"params_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sequence\":42,\"signature\":\"ZmFrZS1zaWduYXR1cmU=\",\"spec_version\":\"a-mcp/0.1\",\"target_resource\":{\"kind\":\"endpoint\",\"ref\":\"https://api.stripe.com/v1/refunds\",\"scope_hint\":\"顧客:c_1\"},\"ts\":\"2026-07-15T00:00:03.000Z\"}",
+    "sha256": "453b2f4c6b441ff42174082609d43973feca3679397790329c980e9a8fc05d56"
+  },
+  {
+    "name": "secret-read",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "spec_version": "a-mcp/0.1",
+      "ts": "2026-07-15T00:00:04.000Z",
+      "call_id": "call_abc",
+      "action_type": "secret.read",
+      "mutates": false,
+      "egress": false,
+      "target_resource": {
+        "kind": "secret",
+        "ref": "db/password"
+      },
+      "outcome": "success",
+      "params_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "canonical": "{\"action_type\":\"secret.read\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000004\",\"mutates\":false,\"outcome\":\"success\",\"params_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"spec_version\":\"a-mcp/0.1\",\"target_resource\":{\"kind\":\"secret\",\"ref\":\"db/password\"},\"ts\":\"2026-07-15T00:00:04.000Z\"}",
+    "sha256": "e50ce5c7c2df217000955c3cfaafdbddd2f0c68e60c1b134458cd816c28601af"
+  }
+]

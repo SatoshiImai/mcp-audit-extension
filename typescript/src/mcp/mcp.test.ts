@@ -1,0 +1,58 @@
+import { describe, it, expect } from 'vitest';
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
+import { AuditHost } from '../host/auditHost.js';
+import { verifyLedger } from '../verify/verify.js';
+import { connectAuditPair } from './wiring.js';
+
+// B2 proof: the SAME tool, host, ledger, and verifier from B1 work over the real MCP wire
+// with only the transport swapped (InProcessTransport → McpTransport). The tool self-attests
+// its internal db ops via server→client audit/attempt requests during tools/call.
+describe('A-MCP over MCP wire (B2)', () => {
+  it('seals tool-internal ops via audit/attempt over the wire and verifies', async () => {
+    const host = new AuditHost('mcp#demo');
+    const { client, close } = await connectAuditPair(host);
+
+    try {
+      const r1 = await client.request(
+        { method: 'tools/call', params: { name: 'get_customer', arguments: { customerId: 'c_1' } } },
+        CallToolResultSchema,
+      );
+      const r2 = await client.request(
+        { method: 'tools/call', params: { name: 'update_email', arguments: { customerId: 'c_1', email: 'new@acme.example' } } },
+        CallToolResultSchema,
+      );
+
+      // Tool calls returned real results over the wire.
+      expect(r1.isError).toBeFalsy();
+      expect(r2.isError).toBeFalsy();
+
+      // The host ledger captured the tool-INTERNAL operations (not just the CallTool boundary):
+      // one db.read (get) + one db.write (update), each attempted → success.
+      const events = host.records().map((r) => `${r.event.action_type}:${r.event.outcome}`);
+      expect(events).toEqual(['db.read:attempted', 'db.read:success', 'db.write:attempted', 'db.write:success']);
+
+      // And the sealed chain verifies.
+      expect(verifyLedger(host.records()).ok).toBe(true);
+    } finally {
+      await close();
+    }
+  });
+
+  it('fails closed over the wire: when the host is unavailable, the internal action is not performed', async () => {
+    const host = new AuditHost('mcp#demo');
+    host.unavailable = true;
+    const { client, close } = await connectAuditPair(host);
+
+    try {
+      const res = await client.request(
+        { method: 'tools/call', params: { name: 'update_email', arguments: { customerId: 'c_1', email: 'blocked@acme.example' } } },
+        CallToolResultSchema,
+      );
+      // The tool aborts the CallTool because no durable record could be obtained.
+      expect(res.isError).toBe(true);
+      expect(host.records()).toHaveLength(0);
+    } finally {
+      await close();
+    }
+  });
+});

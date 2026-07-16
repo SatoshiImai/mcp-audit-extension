@@ -1,0 +1,137 @@
+{
+  "records": [
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "spec_version": "a-mcp/0.1",
+        "ts": "1970-01-01T00:16:41.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.read",
+        "mutates": false,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "customers",
+          "scope_hint": "row:id=c_1"
+        },
+        "outcome": "attempted",
+        "params_hash": "sha256:267bbfc4e38d1b8425f7d583750e1ba047319dfb2b501deedf645e42ad771e41"
+      },
+      "seq": 0,
+      "host_ts": "host-ts:1",
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "record_hash": "54ae69f991f13f83c2016008fb089347de1f9359ac9a7a3b8e8a553d6be0155d"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "spec_version": "a-mcp/0.1",
+        "ts": "1970-01-01T00:16:41.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.read",
+        "mutates": false,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "customers",
+          "scope_hint": "row:id=c_1"
+        },
+        "outcome": "success",
+        "params_hash": "sha256:267bbfc4e38d1b8425f7d583750e1ba047319dfb2b501deedf645e42ad771e41"
+      },
+      "seq": 1,
+      "host_ts": "host-ts:2",
+      "prev_hash": "54ae69f991f13f83c2016008fb089347de1f9359ac9a7a3b8e8a553d6be0155d",
+      "record_hash": "41916c17fe75a31e0951119a8e2d5a907381b16947343eed0a42df59f9a3b175"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "spec_version": "a-mcp/0.1",
+        "ts": "1970-01-01T00:16:42.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "customers",
+          "scope_hint": "row:id=c_1"
+        },
+        "outcome": "attempted",
+        "params_hash": "sha256:e816fda91ad22d752e60cfb43fcf4143143b8a002b61553aef49c22ba90c6b2a"
+      },
+      "seq": 2,
+      "host_ts": "host-ts:3",
+      "prev_hash": "41916c17fe75a31e0951119a8e2d5a907381b16947343eed0a42df59f9a3b175",
+      "record_hash": "f11921d92443a0410bde4485df1e1d5b0eaa3acfef27e3cf8fa0816441fd4909"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "spec_version": "a-mcp/0.1",
+        "ts": "1970-01-01T00:16:42.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.write",
+        "mutates": true,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "customers",
+          "scope_hint": "row:id=c_1"
+        },
+        "outcome": "success",
+        "params_hash": "sha256:e816fda91ad22d752e60cfb43fcf4143143b8a002b61553aef49c22ba90c6b2a"
+      },
+      "seq": 3,
+      "host_ts": "host-ts:4",
+      "prev_hash": "f11921d92443a0410bde4485df1e1d5b0eaa3acfef27e3cf8fa0816441fd4909",
+      "record_hash": "c62448dba8955b6b8f4299ed3798abfe2bacdab23597bd31b4ff24922ad51d50"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "spec_version": "a-mcp/0.1",
+        "ts": "1970-01-01T00:16:43.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.read",
+        "mutates": false,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "customers",
+          "scope_hint": "row:id=c_2"
+        },
+        "outcome": "attempted",
+        "params_hash": "sha256:28e9d13a29ec0ee7c37687fc70f50ee00f8f260ca74485a45f889fb067977908"
+      },
+      "seq": 4,
+      "host_ts": "host-ts:5",
+      "prev_hash": "c62448dba8955b6b8f4299ed3798abfe2bacdab23597bd31b4ff24922ad51d50",
+      "record_hash": "e12774488c39908d6c05c8dec4a973b265145390c1d5de49b771f53c874f7163"
+    },
+    {
+      "event": {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "spec_version": "a-mcp/0.1",
+        "ts": "1970-01-01T00:16:43.000Z",
+        "call_id": "call_abc",
+        "action_type": "db.read",
+        "mutates": false,
+        "egress": false,
+        "target_resource": {
+          "kind": "table",
+          "ref": "customers",
+          "scope_hint": "row:id=c_2"
+        },
+        "outcome": "success",
+        "params_hash": "sha256:28e9d13a29ec0ee7c37687fc70f50ee00f8f260ca74485a45f889fb067977908"
+      },
+      "seq": 5,
+      "host_ts": "host-ts:6",
+      "prev_hash": "e12774488c39908d6c05c8dec4a973b265145390c1d5de49b771f53c874f7163",
+      "record_hash": "5da2d14f4dd353f118287c072c498d137f1918f7e69e46705dd65efb877f30e4"
+    }
+  ],
+  "digest": "5da2d14f4dd353f118287c072c498d137f1918f7e69e46705dd65efb877f30e4"
+}

@@ -1,0 +1,64 @@
+[
+  {
+    "name": "key-order",
+    "value": {
+      "b": 1,
+      "a": 2,
+      "c": 3
+    },
+    "canonical": "{\"a\":2,\"b\":1,\"c\":3}",
+    "sha256": "e145110e712e3ed0a6b233551b27a90aa39b4c93ed67e111ba2002d16e5ed1fa"
+  },
+  {
+    "name": "nested-object-and-array",
+    "value": {
+      "z": {
+        "y": 2,
+        "x": 1
+      },
+      "a": [
+        3,
+        2,
+        1
+      ],
+      "m": {
+        "n": [
+          {
+            "q": 1,
+            "p": 2
+          }
+        ]
+      }
+    },
+    "canonical": "{\"a\":[3,2,1],\"m\":{\"n\":[{\"p\":2,\"q\":1}]},\"z\":{\"x\":1,\"y\":2}}",
+    "sha256": "0f9d1cdc18b850d8db1a9fd05c4f3de2368d59191642f6b664094baa43f4bcd7"
+  },
+  {
+    "name": "unicode",
+    "value": {
+      "note": "café — 日本語 — 🔒 lock"
+    },
+    "canonical": "{\"note\":\"café — 日本語 — 🔒 lock\"}",
+    "sha256": "656ef4921ec2bf1acd5ea1a985bac63113c41554d94bddfa8bd758aab70382cd"
+  },
+  {
+    "name": "scalars",
+    "value": {
+      "i": 0,
+      "big": 1234567890,
+      "neg": -5,
+      "t": true,
+      "f": false,
+      "z": null,
+      "s": "x"
+    },
+    "canonical": "{\"big\":1234567890,\"f\":false,\"i\":0,\"neg\":-5,\"s\":\"x\",\"t\":true,\"z\":null}",
+    "sha256": "1d51e9418db9bea4be75fbd0ebf6bc11b1725f404c5e8ad573b7b1e42f4e85e5"
+  },
+  {
+    "name": "empty",
+    "value": {},
+    "canonical": "{}",
+    "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  }
+]

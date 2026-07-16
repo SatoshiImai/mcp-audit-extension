@@ -1,0 +1,26 @@
+{
+  "name": "a-mcp-poc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A-MCP Level 1 self-attestation PoC (in-process transport; wire-shaped for later MCP SDK binding)",
+  "scripts": {
+    "demo": "tsx src/demo/demo.ts",
+    "demo:l2": "tsx src/demo/l2Demo.ts",
+    "verify": "tsx src/verify/cli.ts",
+    "schema:json": "tsx src/schema/emitJsonSchema.ts",
+    "vectors": "tsx src/vectors/generate.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
