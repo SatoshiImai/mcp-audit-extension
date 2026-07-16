@@ -4,3 +4,10 @@ wip/
 
 # Dependencies (reference implementations install locally)
 node_modules/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/

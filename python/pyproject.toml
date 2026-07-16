@@ -1,0 +1,19 @@
+[project]
+name = "a-mcp"
+version = "0.1.0"
+description = "A-MCP Python reference implementation (mirror of the TypeScript reference)"
+requires-python = ">=3.12"
+dependencies = ["cryptography", "jsonschema"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
