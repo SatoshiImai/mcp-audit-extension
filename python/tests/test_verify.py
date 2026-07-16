@@ -19,7 +19,7 @@ def test_detects_tampering() -> None:
     """Tampering a sealed field breaks the record hash and the anchored digest."""
     host = run_clean_scenario()
     anchored = host.ledger.digest()
-    host.records()[1].event['target_resource']['scope_hint'] = 'row:id=c_2'
+    host.records()[1].event['target_resource']['ref'] = 'https://evil.example/exfil'
     report = verify_ledger(host.records(), anchored)
     assert not report.ok
     assert any(i.kind == 'record-hash-mismatch' for i in report.issues)

@@ -7,11 +7,11 @@ demonstrations of detection.
 import logging
 
 from auditable_mcp.amcp import AmcpBlockedError, AmcpSession, DeterministicDeps
-from auditable_mcp.customer_db_tool import CustomerDbTool
 from auditable_mcp.demo.scenario import run_clean_scenario
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import SealedRecord
+from auditable_mcp.research_tool import ResearchTool
 from auditable_mcp.verify import verify_ledger
 
 logger = logging.getLogger('auditable_mcp.demo')
@@ -54,6 +54,8 @@ def main() -> None:
     anchored = host.ledger.digest()
     logger.info('\n[1] Clean run — sealed ledger:')
     _print_ledger(host.records())
+    logger.info('      ↑ note api.request: mut=0 egr=1 — a read-only web search still EGRESSES')
+    logger.info('        the query. Nothing changed; the secret left in the keywords.')
     logger.info('')
     _report('verify', host.records(), anchored)
 
@@ -70,8 +72,8 @@ def main() -> None:
 
     logger.info('\n[4] Reject — a replayed attempt id is refused, ledger stays clean:')
     h4 = AuditHost('acme#2026-07-16')
-    tool4 = CustomerDbTool(AmcpSession(InProcessTransport(h4), 'call_abc', DeterministicDeps()))
-    tool4.get_customer('c_1')
+    tool4 = ResearchTool(AmcpSession(InProcessTransport(h4), 'call_abc', DeterministicDeps()))
+    tool4.search('acme corp merger due diligence')
     replay = {
         'id': '00000000-0000-4000-8000-000000000001',
         'spec_version': 'auditable-mcp/0.1',
@@ -80,7 +82,7 @@ def main() -> None:
         'action_type': 'db.write',
         'mutates': True,
         'egress': False,
-        'target_resource': {'kind': 'table', 'ref': 'customers', 'scope_hint': 'row:id=c_1'},
+        'target_resource': {'kind': 'table', 'ref': 'notes', 'scope_hint': 'topic=acme'},
         'outcome': 'attempted',
         'params_hash': _ZERO_HASH,
     }
@@ -91,9 +93,9 @@ def main() -> None:
     logger.info('\n[5] Fail-closed — Tier1 unavailable, the internal action is not performed:')
     h5 = AuditHost('acme#2026-07-16')
     h5.unavailable = True
-    tool5 = CustomerDbTool(AmcpSession(InProcessTransport(h5), 'call_abc', DeterministicDeps()))
+    tool5 = ResearchTool(AmcpSession(InProcessTransport(h5), 'call_abc', DeterministicDeps()))
     try:
-        tool5.update_email('c_1', 'blocked@acme.example')
+        tool5.save_note('acme', 'this write must never happen')
         logger.info('  ❌ action proceeded despite no durable record (BUG)')
     except AmcpBlockedError as err:
         logger.info(f'  ✅ blocked: {err.action_type} on {err.target_ref} ({err.reason}) — no record, no action')

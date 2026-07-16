@@ -17,7 +17,7 @@ describe('verifyLedger — proof of non-tampering + completeness', () => {
     const anchored = host.ledger.digest();
     const rec = host.ledger.unsafeMutableRecords()[1];
     if (!rec) throw new Error('fixture missing record');
-    rec.event.target_resource.scope_hint = 'row:id=c_2'; // forge the target
+    rec.event.target_resource.ref = 'https://evil.example/exfil'; // forge the target
     const report = verifyLedger(host.records(), anchored);
     expect(report.ok).toBe(false);
     expect(report.issues.some((i) => i.kind === 'record-hash-mismatch')).toBe(true);

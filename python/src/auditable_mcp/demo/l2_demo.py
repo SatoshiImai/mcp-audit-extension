@@ -8,13 +8,13 @@ import logging
 
 from auditable_mcp.amcp import AmcpSession, DeterministicDeps
 from auditable_mcp.capability import AuditCapability
-from auditable_mcp.customer_db_tool import CustomerDbTool
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2.keys import KeyRegistry, ToolKey, generate_tool_key
 from auditable_mcp.l2.reconcile import BoundaryObserver, reconcile
 from auditable_mcp.l2.signing import Ed25519Signer, sign_event
 from auditable_mcp.ledger import SealedRecord
+from auditable_mcp.research_tool import ResearchTool
 from auditable_mcp.verify import verify_ledger
 
 logger = logging.getLogger('auditable_mcp.demo')
@@ -63,7 +63,7 @@ def main() -> None:
     logger.info(_RULE)
 
     # Onboarding: the host registers the tool's public key out-of-band (the trust anchor).
-    key = generate_tool_key('customer-db-tool-key')
+    key = generate_tool_key('research-tool-key')
     registry = KeyRegistry()
     registry.register(key.key_id, key.public_key)
 
@@ -71,9 +71,9 @@ def main() -> None:
     host = AuditHost('acme#2026-07-16', L2_CAP, registry)
     signer = Ed25519Signer(key.key_id, key.private_key)
     session = AmcpSession(InProcessTransport(host), 'call_abc', DeterministicDeps(), signer)
-    tool = CustomerDbTool(session)
-    tool.get_customer('c_1')
-    tool.update_email('c_1', 'new@acme.example')
+    tool = ResearchTool(session)
+    tool.search('acme corp merger due diligence')
+    tool.save_note('acme', 'merger rumour confirmed by two sources')
     _print_ledger(host.records())
     report = verify_ledger(host.records(), host.ledger.digest())
     verdict = '✅ VERIFIED' if report.ok else '❌ FAILURE'
@@ -81,9 +81,9 @@ def main() -> None:
 
     logger.info('\n[2] Forgery — a signed record altered after signing is rejected:')
     h2 = AuditHost('acme#adv', L2_CAP, registry)
-    forged = {**_attempt_for(key, 0, 'customers'), 'target_resource': {'kind': 'table', 'ref': 'salaries'}}
+    forged = {**_attempt_for(key, 0, 'notes'), 'target_resource': {'kind': 'table', 'ref': 'salaries'}}
     res = h2.handle_attempt(forged)
-    logger.info(f'  altered target customers->salaries → {res.status} ({res.reason})')
+    logger.info(f'  altered target notes->salaries → {res.status} ({res.reason})')
     logger.info(f'  ledger records: {len(h2.records())} (lie kept out)')
 
     logger.info('\n[3] Unsigned under L2 — an L1-style event without a signature is refused:')
@@ -96,7 +96,7 @@ def main() -> None:
         'action_type': 'db.write',
         'mutates': True,
         'egress': False,
-        'target_resource': {'kind': 'table', 'ref': 'customers'},
+        'target_resource': {'kind': 'table', 'ref': 'notes'},
         'outcome': 'attempted',
         'params_hash': _ZERO_HASH,
     }
@@ -105,15 +105,17 @@ def main() -> None:
 
     logger.info('\n[4] Sequence gap — a suppressed event leaves a hole the host detects:')
     h4 = AuditHost('acme#adv', L2_CAP, registry)
-    h4.handle_attempt(_attempt_for(key, 0, 'customers'))
-    res = h4.handle_attempt(_attempt_for(key, 2, 'customers'))
+    h4.handle_attempt(_attempt_for(key, 0, 'notes'))
+    res = h4.handle_attempt(_attempt_for(key, 2, 'notes'))
     kinds = ', '.join(a.kind for a in h4.anomalies())
     logger.info(f'  emit seq 0 then seq 2 → seq2 {res.status}; anomalies: {kinds}')
 
     logger.info('\n[5] Reconciliation — an egress the boundary saw but the tool never reported:')
     h5 = AuditHost('acme#adv', L2_CAP, registry)
     boundary = BoundaryObserver()
-    boundary.observe_egress('call_adv', 'https://api.stripe.com/v1/refunds')
+    # The tool ran a web search — the query egressed and the gateway saw it — but the tool
+    # emitted no matching audit event. The lie is the omission.
+    boundary.observe_egress('call_adv', 'https://api.search.example/v1/search')
     for anomaly in reconcile(h5.records(), boundary.for_call('call_adv'), 'call_adv'):
         logger.info(f'  ❌ {anomaly.kind}: {anomaly.destination} ({anomaly.detail})')
         # end for

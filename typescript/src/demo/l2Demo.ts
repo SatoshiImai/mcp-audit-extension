@@ -1,7 +1,7 @@
 import { AuditHost } from '../host/auditHost.js';
 import { InProcessTransport } from '../transport/inProcess.js';
 import { AmcpSession, deterministicDeps } from '../tool/amcp.js';
-import { CustomerDbTool } from '../tool/customerDbTool.js';
+import { ResearchTool } from '../tool/researchTool.js';
 import { verifyLedger } from '../verify/verify.js';
 import { generateToolKey, KeyRegistry, type ToolKey } from '../l2/keys.js';
 import { Ed25519Signer, signEvent } from '../l2/signing.js';
@@ -55,7 +55,7 @@ async function main(): Promise<void> {
   line();
 
   // Onboarding: the host registers the tool's public key out-of-band (the trust anchor).
-  const key = generateToolKey('customer-db-tool-key');
+  const key = generateToolKey('research-tool-key');
   const registry = new KeyRegistry();
   registry.register(key.keyId, key.publicKey);
 
@@ -64,9 +64,9 @@ async function main(): Promise<void> {
   const host = new AuditHost('acme#2026-07-16', L2_CAP, registry);
   const signer = new Ed25519Signer(key.keyId, key.privateKey);
   const session = new AmcpSession(new InProcessTransport(host), 'call_abc', deterministicDeps(), signer);
-  const tool = new CustomerDbTool(session);
-  await tool.getCustomer('c_1');
-  await tool.updateEmail('c_1', 'new@acme.example');
+  const tool = new ResearchTool(session);
+  await tool.search('acme corp merger due diligence');
+  await tool.saveNote('acme', 'merger rumour confirmed by two sources');
   printLedger(host.records());
   const v = verifyLedger(host.records(), host.ledger.digest());
   console.log(`  verify: ${v.ok ? '✅ VERIFIED' : '❌ FAILURE'}  (signatures accepted, chain intact)`);
@@ -75,10 +75,10 @@ async function main(): Promise<void> {
   console.log('\n[2] Forgery — a signed record altered after signing is rejected:');
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
-    const signed = attemptFor(key, 0, 'customers');
+    const signed = attemptFor(key, 0, 'notes');
     const forged: AuditEvent = { ...signed, target_resource: { kind: 'table', ref: 'salaries' } };
     const res = h.handleAttempt(forged);
-    console.log(`  altered target customers→salaries → ${res.status}${res.status !== 'accept' ? ` (${res.reason})` : ''}`);
+    console.log(`  altered target notes→salaries → ${res.status}${res.status !== 'accept' ? ` (${res.reason})` : ''}`);
     console.log(`  ledger records: ${h.records().length} (lie kept out)`);
   }
 
@@ -89,7 +89,7 @@ async function main(): Promise<void> {
     const unsigned: AuditEvent = {
       id: '00000000-0000-4000-8000-0000000000aa', spec_version: 'auditable-mcp/0.1', ts: '2026-07-16T00:00:00.000Z',
       call_id: 'call_adv', action_type: 'db.write', mutates: true, egress: false,
-      target_resource: { kind: 'table', ref: 'customers' }, outcome: 'attempted', params_hash: `sha256:${'0'.repeat(64)}`,
+      target_resource: { kind: 'table', ref: 'notes' }, outcome: 'attempted', params_hash: `sha256:${'0'.repeat(64)}`,
     };
     const res = h.handleAttempt(unsigned);
     console.log(`  unsigned attempt → ${res.status}${res.status !== 'accept' ? ` (${res.reason})` : ''}`);
@@ -99,8 +99,8 @@ async function main(): Promise<void> {
   console.log('\n[4] Sequence gap — a suppressed event leaves a hole the host detects:');
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
-    h.handleAttempt(attemptFor(key, 0, 'customers'));
-    const res = h.handleAttempt(attemptFor(key, 2, 'customers')); // seq 1 suppressed
+    h.handleAttempt(attemptFor(key, 0, 'notes'));
+    const res = h.handleAttempt(attemptFor(key, 2, 'notes')); // seq 1 suppressed
     console.log(`  emit seq 0 then seq 2 → seq2 ${res.status}; anomalies: ${h.getAnomalies().map((a) => a.kind).join(', ')}`);
   }
 
@@ -109,10 +109,10 @@ async function main(): Promise<void> {
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
     const boundary = new BoundaryObserver();
-    const stripe = 'https://api.stripe.com/v1/refunds';
-    boundary.observeEgress('call_adv', stripe); // gateway saw the egress
-    // ...the tool emitted no matching audit event (perfect signatures on everything else
-    // cannot help — the lie is the omission).
+    // The tool ran a web search — the query egressed and the gateway saw it — but the tool
+    // emitted no matching audit event. Perfect signatures on everything else cannot help:
+    // the lie is the omission.
+    boundary.observeEgress('call_adv', 'https://api.search.example/v1/search');
     const anomalies = reconcile(h.records(), boundary.forCall('call_adv'), 'call_adv');
     for (const a of anomalies) console.log(`  ❌ ${a.kind}: ${a.destination} (${a.detail})`);
   }

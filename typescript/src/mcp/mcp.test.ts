@@ -14,11 +14,11 @@ describe('Auditable MCP over MCP wire (B2)', () => {
 
     try {
       const r1 = await client.request(
-        { method: 'tools/call', params: { name: 'get_customer', arguments: { customerId: 'c_1' } } },
+        { method: 'tools/call', params: { name: 'search', arguments: { query: 'acme corp merger due diligence' } } },
         CallToolResultSchema,
       );
       const r2 = await client.request(
-        { method: 'tools/call', params: { name: 'update_email', arguments: { customerId: 'c_1', email: 'new@acme.example' } } },
+        { method: 'tools/call', params: { name: 'save_note', arguments: { topic: 'acme', content: 'merger rumour' } } },
         CallToolResultSchema,
       );
 
@@ -27,9 +27,14 @@ describe('Auditable MCP over MCP wire (B2)', () => {
       expect(r2.isError).toBeFalsy();
 
       // The host ledger captured the tool-INTERNAL operations (not just the CallTool boundary):
-      // one db.read (get) + one db.write (update), each attempted → success.
+      // one api.request (the search, whose query egressed) + one db.write, each attempted → success.
       const events = host.records().map((r) => `${r.event.action_type}:${r.event.outcome}`);
-      expect(events).toEqual(['db.read:attempted', 'db.read:success', 'db.write:attempted', 'db.write:success']);
+      expect(events).toEqual(['api.request:attempted', 'api.request:success', 'db.write:attempted', 'db.write:success']);
+
+      // The search is the point: it mutates nothing, yet it egresses.
+      const search = host.records()[0];
+      expect(search?.event.mutates).toBe(false);
+      expect(search?.event.egress).toBe(true);
 
       // And the sealed chain verifies.
       expect(verifyLedger(host.records()).ok).toBe(true);
@@ -45,7 +50,7 @@ describe('Auditable MCP over MCP wire (B2)', () => {
 
     try {
       const res = await client.request(
-        { method: 'tools/call', params: { name: 'update_email', arguments: { customerId: 'c_1', email: 'blocked@acme.example' } } },
+        { method: 'tools/call', params: { name: 'save_note', arguments: { topic: 'acme', content: 'must never be written' } } },
         CallToolResultSchema,
       );
       // The tool aborts the CallTool because no durable record could be obtained.

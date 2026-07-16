@@ -11,7 +11,7 @@ import type { AuditHost } from '../host/auditHost.js';
 import type { AuditCapability } from '../schema/capability.js';
 import { DEFAULT_L1_CAPABILITY } from '../schema/capability.js';
 import { AmcpSession, AmcpBlockedError, deterministicDeps, type AmcpDeps } from '../tool/amcp.js';
-import { CustomerDbTool } from '../tool/customerDbTool.js';
+import { ResearchTool } from '../tool/researchTool.js';
 import { McpTransport, type AuditToolServer } from '../transport/mcpTransport.js';
 import {
   AuditAttemptRequestSchema,
@@ -45,17 +45,20 @@ function createToolServer(capability: AuditCapability, deps: AmcpDeps): AuditToo
 
   server.setRequestHandler(CallToolRequestSchema, async (req, extra): Promise<CallToolResult> => {
     const session = new AmcpSession(new McpTransport(server, capability), String(extra.requestId), deps);
-    const tool = new CustomerDbTool(session);
+    const tool = new ResearchTool(session);
     const args = (req.params.arguments ?? {}) as Record<string, string>;
 
     try {
       let result: unknown;
       switch (req.params.name) {
-        case 'get_customer':
-          result = await tool.getCustomer(args.customerId ?? '');
+        case 'search':
+          result = await tool.search(args.query ?? '');
           break;
-        case 'update_email':
-          result = await tool.updateEmail(args.customerId ?? '', args.email ?? '');
+        case 'save_note':
+          result = await tool.saveNote(args.topic ?? '', args.content ?? '');
+          break;
+        case 'list_notes':
+          result = await tool.listNotes();
           break;
         default:
           return { content: [{ type: 'text', text: `unknown tool: ${req.params.name}` }], isError: true };

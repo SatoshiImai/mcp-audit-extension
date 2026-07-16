@@ -13,8 +13,10 @@ the infrastructure.
 
 Run `npm run demo`:
 
-1. **Clean run** — a first-party customer-DB tool self-attests each internal `db.read` /
-   `db.write`; the ledger `✅ VERIFIED (non-tampered + complete)` and matches the anchored digest.
+1. **Clean run** — a first-party research tool self-attests each internal op; the ledger
+   `✅ VERIFIED (non-tampered + complete)` and matches the anchored digest. The three ops span
+   the effect axis, including the case naive "reads are safe" thinking misses: a web search
+   (`api.request`) shows `mut=0 egr=1` — it mutates nothing, yet the **query egresses**.
 2. **Tamper** — flip one sealed field → recompute breaks the chain → `record-hash-mismatch` + `digest-mismatch`.
 3. **Loss** — drop one sealed record → `seq-gap` + `digest-mismatch` (completeness).
 4. **Reject** — a replayed (forged) attempt id is refused; the ledger stays clean (a lie is blocked from the camera, not the tool's action).
@@ -57,7 +59,7 @@ request/response during tool execution).
   sends `audit/attempt` (server→client request) and `audit/outcome` (notification) to the
   host running as an MCP client, connected via `InMemoryTransport`. See `src/mcp/`.
 
-The swap is a drop-in: the tool (`AmcpSession`, `CustomerDbTool`), host (`AuditHost`),
+The swap is a drop-in: the tool (`AmcpSession`, `ResearchTool`), host (`AuditHost`),
 ledger, and verifier are **byte-identical** across B1 and B2 — only the transport differs
 (`src/mcp/mcp.test.ts` proves the same seal + verify over the wire, including fail-closed).
 `audit/attempt` reuses the elicitation *wire form* (a server-initiated request during
@@ -71,7 +73,7 @@ ledger, and verifier are **byte-identical** across B1 and B2 — only the transp
 | `src/ledger/` | canonical JSON + Tier1/Tier2 sealer (sequence + hash chain) |
 | `src/transport/` | wire-shaped `AuditTransport` + `InProcessTransport` (B1) + `McpTransport` (B2) |
 | `src/host/` | audit subsystem: `accept` / `reject` / `unavailable` |
-| `src/tool/` | audit-before-act library + dummy first-party customer-DB tool |
+| `src/tool/` | audit-before-act library + dummy first-party research tool (search / notes) |
 | `src/l2/` | signing (Ed25519), key registry, reconciliation (Level 2) |
 | `src/mcp/` | MCP SDK wiring (tool server + host client over `InMemoryTransport`) |
 | `src/verify/` | chain recompute, gap + tamper detection (`npm run verify`) |
