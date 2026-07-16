@@ -10,7 +10,7 @@ import type { AuditCapability } from '../schema/capability.js';
 // Response to audit/attempt. accept = record durably persisted (proceed). reject = the
 // RECORD is invalid/forged (a lie into the ledger) — do not proceed, integrity fault.
 // unavailable = infra could not persist — do not proceed (fail-closed). None of these
-// authorize the domain action; that is Tyr's job. Fail-closed here is about record
+// authorize the domain action; that is the operator's allowlist. Fail-closed here is about record
 // completeness, not action control (§6.1).
 export type AttemptResponse =
   | { status: 'accept'; seq: number; record_hash: string }

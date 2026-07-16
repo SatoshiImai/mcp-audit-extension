@@ -8,7 +8,7 @@ import { ACTION_TYPE_RE } from './actionType.js';
 export const SPEC_VERSION = 'auditable-mcp/0.1';
 
 // Tool-internal events emit only attempted/success/failed/aborted.
-// denied/expired are Tyr CallTool-boundary outcomes, not Auditable MCP internal responses (§5).
+// denied/expired are host CallTool-boundary outcomes, not Auditable MCP internal responses (§5).
 export const OUTCOME = ['attempted', 'success', 'failed', 'aborted'] as const;
 export type Outcome = (typeof OUTCOME)[number];
 

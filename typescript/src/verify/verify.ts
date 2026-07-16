@@ -41,7 +41,7 @@ export function verifyLedger(records: readonly SealedRecord[], anchoredDigest?: 
       issues.push({ seq: rec.seq, kind: 'schema-invalid', detail: parsed.error.message });
     }
 
-    // 2. Sequence must be contiguous from 0 (a gap ⇒ a record was dropped, §R3).
+    // 2. Sequence must be contiguous from 0 (a gap ⇒ a record was dropped).
     if (rec.seq !== i) {
       issues.push({ seq: rec.seq, kind: rec.seq > i ? 'seq-gap' : 'seq-out-of-order', detail: `expected seq ${i}, got ${rec.seq}` });
     }

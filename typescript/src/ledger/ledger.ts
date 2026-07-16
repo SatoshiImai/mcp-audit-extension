@@ -10,7 +10,7 @@ export const GENESIS_HASH = '0'.repeat(64);
 
 export interface SealedRecord {
   event: AuditEvent;
-  seq: number; // partition-monotonic sequence assigned by the sealer (gap → loss, §R3)
+  seq: number; // partition-monotonic sequence assigned by the sealer (a gap means a record was lost)
   host_ts: string; // authoritative host time
   prev_hash: string; // previous record_hash in the chain
   record_hash: string; // sha256( canonical(event) ‖ seq ‖ host_ts ‖ prev_hash )

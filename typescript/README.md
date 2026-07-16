@@ -45,7 +45,7 @@ impossible to forge or repudiate, and its omissions detectable.
 ## Design boundary (why this is audit, not control)
 
 The host is a **monitoring camera over already-allowed tools**, not a real-time gate.
-Deciding whether to connect a tool is Tyr's allowlist job. The host's only "block" is
+Deciding whether to connect a tool is the operator's allowlist job. The host's only "block" is
 refusing a **lie into the ledger** (`reject`) or failing closed when it cannot record
 (`unavailable`). Neither authorizes the tool's domain action.
 

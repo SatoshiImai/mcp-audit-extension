@@ -47,7 +47,7 @@ export interface Effect {
 }
 
 // Effect the tool self-declares is advisory; the host may override with its own
-// classification (Tyr, design §4.1 ③). This resolves the declared effect against the
+// classification (design §4.1 ③). This resolves the declared effect against the
 // fail-safe floor: anything not positively known to be non-mutating/internal is treated
 // as mutating+egress so unknown/ext actions never look lower-risk than they are.
 export function resolveEffect(actionType: string, declared: Partial<Effect> | undefined): Effect {

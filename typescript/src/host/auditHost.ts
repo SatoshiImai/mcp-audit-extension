@@ -8,7 +8,7 @@ import type { KeyRegistry } from '../l2/keys.js';
 
 // Host-side audit subsystem. Receives self-attested events, decides accept/reject/unavailable,
 // and seals accepted records into the tamper-evident ledger. It is a monitoring camera, not a
-// control point: it never authorizes the tool's domain action (that is Tyr's allowlist). The
+// control point: it never authorizes the tool's domain action (that is the operator's allowlist). The
 // only thing it blocks is a lie into the ledger — a malformed, forged, or replayed record
 // gets `reject` and never pollutes the chain (design §0, §6.1).
 
