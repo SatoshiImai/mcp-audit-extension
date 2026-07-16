@@ -1,10 +1,10 @@
-'''Tests for the L1 audit host: accept / reject / unavailable.'''
+"""Tests for the L1 audit host: accept / reject / unavailable."""
 
 from a_mcp.host import AuditHost
 
 
 def _attempt(overrides: dict | None = None) -> dict:
-    '''Build a valid attempt event, optionally overriding fields.'''
+    """Build a valid attempt event, optionally overriding fields."""
     event = {
         'id': '00000000-0000-4000-8000-000000000001',
         'spec_version': 'a-mcp/0.1',
@@ -25,7 +25,7 @@ def _attempt(overrides: dict | None = None) -> dict:
 
 
 def test_accepts_valid_attempt() -> None:
-    '''A valid attempt is accepted and sealed.'''
+    """A valid attempt is accepted and sealed."""
     host = AuditHost('t#d')
     assert host.handle_attempt(_attempt()).status == 'accept'
     assert len(host.records()) == 1
@@ -33,7 +33,7 @@ def test_accepts_valid_attempt() -> None:
 
 
 def test_rejects_schema_invalid_without_sealing() -> None:
-    '''A schema-invalid record (a lie) is rejected and never sealed.'''
+    """A schema-invalid record (a lie) is rejected and never sealed."""
     host = AuditHost('t#d')
     res = host.handle_attempt(_attempt({'params_hash': 'not-a-hash'}))
     assert res.status == 'reject'
@@ -43,7 +43,7 @@ def test_rejects_schema_invalid_without_sealing() -> None:
 
 
 def test_rejects_replayed_attempt() -> None:
-    '''A replayed attempt id is rejected and the ledger stays clean.'''
+    """A replayed attempt id is rejected and the ledger stays clean."""
     host = AuditHost('t#d')
     assert host.handle_attempt(_attempt()).status == 'accept'
     res = host.handle_attempt(_attempt())
@@ -54,7 +54,7 @@ def test_rejects_replayed_attempt() -> None:
 
 
 def test_unavailable_fail_closed() -> None:
-    '''An unavailable host fails closed: the record is not sealed.'''
+    """An unavailable host fails closed: the record is not sealed."""
     host = AuditHost('t#d')
     host.unavailable = True
     res = host.handle_attempt(_attempt())

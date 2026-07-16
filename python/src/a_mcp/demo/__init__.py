@@ -1,1 +1,1 @@
-'''Runnable demonstrations of the A-MCP reference implementation.'''
+"""Runnable demonstrations of the A-MCP reference implementation."""

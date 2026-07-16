@@ -1,4 +1,4 @@
-'''Tests for the AmcpSession audit-before-act discipline.'''
+"""Tests for the AmcpSession audit-before-act discipline."""
 
 import pytest
 
@@ -8,13 +8,13 @@ from a_mcp.in_process import InProcessTransport
 
 
 def _session(host: AuditHost) -> AmcpSession:
-    '''Build an in-process session bound to the host.'''
+    """Build an in-process session bound to the host."""
     return AmcpSession(InProcessTransport(host), 'call_abc', DeterministicDeps())
     # end def
 
 
 def test_emits_attempt_then_performs_then_outcome() -> None:
-    '''Attempt is accepted, the action runs, then a success outcome is sealed.'''
+    """Attempt is accepted, the action runs, then a success outcome is sealed."""
     host = AuditHost('t#d')
     session = _session(host)
     calls: list[int] = []
@@ -35,7 +35,7 @@ def test_emits_attempt_then_performs_then_outcome() -> None:
 
 
 def test_does_not_perform_when_unavailable() -> None:
-    '''When the host is unavailable, the action is not performed (fail-closed).'''
+    """When the host is unavailable, the action is not performed (fail-closed)."""
     host = AuditHost('t#d')
     host.unavailable = True
     session = _session(host)
@@ -57,7 +57,7 @@ def test_does_not_perform_when_unavailable() -> None:
 
 
 def test_seals_failed_outcome_and_reraises() -> None:
-    '''When the action raises, a failed outcome is sealed and the error re-raised.'''
+    """When the action raises, a failed outcome is sealed and the error re-raised."""
     host = AuditHost('t#d')
     session = _session(host)
 

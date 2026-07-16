@@ -1,10 +1,10 @@
-'''Verifier: prove non-tampering + completeness over a sealed ledger (the evidence artifact).
+"""Verifier: prove non-tampering + completeness over a sealed ledger (the evidence artifact).
 
 Recomputes the hash chain from the record bytes, detects sequence gaps (loss), checks the
 anchored digest, and correlates attempts with outcomes. It trusts nothing but the bytes.
 Chaining on the RECOMPUTED hash means any mutation of an event body propagates to the tail,
 so a single tampered field breaks the anchored digest -- that is the tamper proof.
-'''
+"""
 
 from dataclasses import dataclass
 
@@ -14,7 +14,7 @@ from a_mcp.schema import validate_event
 
 @dataclass
 class VerifyIssue:
-    '''A single verification failure.'''
+    """A single verification failure."""
 
     seq: int | None
     kind: str
@@ -24,7 +24,7 @@ class VerifyIssue:
 
 @dataclass
 class VerifyReport:
-    '''The result of verifying a ledger.'''
+    """The result of verifying a ledger."""
 
     ok: bool
     count: int
@@ -34,7 +34,7 @@ class VerifyReport:
 
 
 def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = None) -> VerifyReport:
-    '''Verify a sealed ledger for non-tampering and completeness.
+    """Verify a sealed ledger for non-tampering and completeness.
 
     Args:
         records: The sealed records in order.
@@ -42,7 +42,7 @@ def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = Non
 
     Returns:
         A report; ``ok`` is True only when there are no issues.
-    '''
+    """
     issues: list[VerifyIssue] = []
     attempted_ids: set[str] = set()
     prev_recomputed = GENESIS_HASH

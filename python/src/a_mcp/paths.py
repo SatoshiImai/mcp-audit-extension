@@ -1,9 +1,9 @@
-'''Locations of the shared, language-neutral spec artifacts.
+"""Locations of the shared, language-neutral spec artifacts.
 
 The JSON Schema and conformance vectors live at the repository root under ``spec/`` so the
 TypeScript and Python reference implementations validate against the SAME contract. Resolved
 relative to this file, never the working directory.
-'''
+"""
 
 from pathlib import Path
 

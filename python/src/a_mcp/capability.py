@@ -1,15 +1,15 @@
-'''Host-declared audit capability (design §3.3).
+"""Host-declared audit capability (design §3.3).
 
 The host owns the guarantee level; the tool complies or fails observably. Declaration flows
 host->tool only, so an untrusted tool cannot weaken record integrity via what it declares.
-'''
+"""
 
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class AuditCapability:
-    '''The audit requirements a host declares.'''
+    """The audit requirements a host declares."""
 
     level: str = 'L1'  # 'L1' | 'L2'
     attempt: str = 'request'  # attempt is always a blocking request (fail-closed)

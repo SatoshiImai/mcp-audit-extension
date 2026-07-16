@@ -1,8 +1,8 @@
-'''L1 end-to-end walkthrough: tool-internal self-attestation -> tamper-evident ledger.
+"""L1 end-to-end walkthrough: tool-internal self-attestation -> tamper-evident ledger.
 
 Run: ``PYTHONPATH=src python -m a_mcp.demo.demo``. Integrity failures shown are deliberate
 demonstrations of detection.
-'''
+"""
 
 import logging
 
@@ -20,7 +20,7 @@ _ZERO_HASH = f'sha256:{"0" * 64}'
 
 
 def _print_ledger(records: list[SealedRecord]) -> None:
-    '''Log each sealed record in a compact one-line form.'''
+    """Log each sealed record in a compact one-line form."""
     for r in records:
         e = r.event
         target = f'{e["target_resource"]["ref"]}#{e["target_resource"].get("scope_hint", "")}'
@@ -33,7 +33,7 @@ def _print_ledger(records: list[SealedRecord]) -> None:
 
 
 def _report(label: str, records: list[SealedRecord], anchored: str | None = None) -> None:
-    '''Verify a ledger and log the result and any issues.'''
+    """Verify a ledger and log the result and any issues."""
     report = verify_ledger(records, anchored)
     status = '✅ VERIFIED (non-tampered + complete)' if report.ok else '❌ INTEGRITY FAILURE'
     logger.info(f'  {label}: {status}  [{report.count} records, digest={report.computed_digest[:12]}…]')
@@ -44,7 +44,7 @@ def _report(label: str, records: list[SealedRecord], anchored: str | None = None
 
 
 def main() -> None:
-    '''Run the five L1 demonstration scenarios.'''
+    """Run the five L1 demonstration scenarios."""
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     logger.info(_RULE)
     logger.info('A-MCP L1 PoC (Python) — tool-internal self-attestation -> tamper-evident ledger')

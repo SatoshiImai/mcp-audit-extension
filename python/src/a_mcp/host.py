@@ -1,10 +1,10 @@
-'''Host-side audit subsystem (a monitoring camera, not a control point).
+"""Host-side audit subsystem (a monitoring camera, not a control point).
 
 Receives self-attested events, decides accept/reject/unavailable, and seals accepted records
 into the tamper-evident ledger. It never authorizes the tool's domain action (that is the
 allowlist's job). The only thing it blocks is a lie into the ledger: a malformed or replayed
 record gets rejected and never pollutes the chain (design §0, §6.1).
-'''
+"""
 
 from dataclasses import dataclass
 
@@ -18,7 +18,7 @@ from a_mcp.transport import AttemptResponse, accept, reject, unavailable
 
 @dataclass
 class IntegrityAnomaly:
-    '''A detected lie or inconsistency in the audit stream.'''
+    """A detected lie or inconsistency in the audit stream."""
 
     id: str
     kind: str
@@ -27,7 +27,7 @@ class IntegrityAnomaly:
 
 
 class AuditHost:
-    '''Receives self-attested events and seals valid ones into the tamper-evident ledger.'''
+    """Receives self-attested events and seals valid ones into the tamper-evident ledger."""
 
     def __init__(
         self,
@@ -35,7 +35,7 @@ class AuditHost:
         capability: AuditCapability = DEFAULT_L1_CAPABILITY,
         key_registry: KeyRegistry | None = None,
     ) -> None:
-        '''Initialize the host for a partition under the given capability and optional keys.'''
+        """Initialize the host for a partition under the given capability and optional keys."""
         self.ledger = Ledger(partition)
         # Demo switch: simulate Tier1 durability failure (infra), which must fail-closed.
         self.unavailable = False
@@ -49,12 +49,12 @@ class AuditHost:
         # end def
 
     def _flag(self, event_id: str, kind: str, detail: str) -> None:
-        '''Record an integrity anomaly.'''
+        """Record an integrity anomaly."""
         self._anomalies.append(IntegrityAnomaly(id=event_id, kind=kind, detail=detail))
         # end def
 
     def _check_l2(self, event: dict) -> str | None:
-        '''Verify L2 non-repudiation and sequence continuity.
+        """Verify L2 non-repudiation and sequence continuity.
 
         A forged/altered/unsigned record or a replayed sequence is a lie into the ledger and
         returns a reject reason. A forward gap means a prior event was suppressed and is
@@ -66,7 +66,7 @@ class AuditHost:
 
         Returns:
             A reject reason string, or None to proceed.
-        '''
+        """
         if self._capability.level != 'L2':
             return None
             # end if
@@ -98,28 +98,28 @@ class AuditHost:
         # end def
 
     def negotiate(self) -> AuditCapability:
-        '''Return the host-declared audit capability.'''
+        """Return the host-declared audit capability."""
         return self._capability
         # end def
 
     def anomalies(self) -> list[IntegrityAnomaly]:
-        '''Return the detected integrity anomalies.'''
+        """Return the detected integrity anomalies."""
         return list(self._anomalies)
         # end def
 
     def records(self) -> list[SealedRecord]:
-        '''Return the sealed ledger records.'''
+        """Return the sealed ledger records."""
         return self.ledger.records()
         # end def
 
     def _next_host_ts(self) -> str:
-        '''Return a deterministic monotonic host timestamp (no wall clock).'''
+        """Return a deterministic monotonic host timestamp (no wall clock)."""
         self._host_clock += 1
         return f'host-ts:{self._host_clock}'
         # end def
 
     def handle_attempt(self, event: object) -> AttemptResponse:
-        '''Validate and, if durable, seal an attempt; otherwise reject/unavailable.'''
+        """Validate and, if durable, seal an attempt; otherwise reject/unavailable."""
         error = validate_event(event)
         if error is not None:
             self._anomalies.append(IntegrityAnomaly(id=_extract_id(event), kind='schema-invalid', detail=error))
@@ -156,7 +156,7 @@ class AuditHost:
         # end def
 
     def handle_outcome(self, event: object) -> None:
-        '''Append an outcome; flag correlation anomalies (the tamper-evidence byproduct).'''
+        """Append an outcome; flag correlation anomalies (the tamper-evidence byproduct)."""
         error = validate_event(event)
         if error is not None:
             self._anomalies.append(IntegrityAnomaly(id=_extract_id(event), kind='schema-invalid', detail=error))
@@ -189,11 +189,12 @@ class AuditHost:
             # end if
         self.ledger.append(event, self._next_host_ts())
         # end def
+
     # end class
 
 
 def _extract_id(raw: object) -> str:
-    '''Best-effort id extraction for anomaly logging.'''
+    """Best-effort id extraction for anomaly logging."""
     if isinstance(raw, dict) and isinstance(raw.get('id'), str):
         return raw['id']
         # end if

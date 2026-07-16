@@ -1,4 +1,4 @@
-'''Tests for L2 signing and the L1 ⊆ L2 schema invariant.'''
+"""Tests for L2 signing and the L1 ⊆ L2 schema invariant."""
 
 from a_mcp.l2.keys import generate_tool_key
 from a_mcp.l2.signing import Ed25519Signer, sign_event, verify_event_signature
@@ -6,7 +6,7 @@ from a_mcp.schema import validate_event
 
 
 def _base_event() -> dict:
-    '''Build a minimal valid (unsigned) event.'''
+    """Build a minimal valid (unsigned) event."""
     return {
         'id': '00000000-0000-4000-8000-000000000001',
         'spec_version': 'a-mcp/0.1',
@@ -23,7 +23,7 @@ def _base_event() -> dict:
 
 
 def test_signed_event_verifies() -> None:
-    '''A signed event verifies against the registered public key.'''
+    """A signed event verifies against the registered public key."""
     key = generate_tool_key('k1')
     signed = sign_event(_base_event(), key.key_id, 0, key.private_key)
     assert signed['signature']
@@ -32,7 +32,7 @@ def test_signed_event_verifies() -> None:
 
 
 def test_tampering_invalidates_signature() -> None:
-    '''Tampering any signed field invalidates the signature (forgery blocked).'''
+    """Tampering any signed field invalidates the signature (forgery blocked)."""
     key = generate_tool_key('k1')
     signed = sign_event(_base_event(), key.key_id, 0, key.private_key)
     forged = {**signed, 'target_resource': {'kind': 'table', 'ref': 'salaries'}}
@@ -41,7 +41,7 @@ def test_tampering_invalidates_signature() -> None:
 
 
 def test_different_key_does_not_verify() -> None:
-    '''A signature from a different key does not verify.'''
+    """A signature from a different key does not verify."""
     key = generate_tool_key('k1')
     other = generate_tool_key('k2')
     signed = sign_event(_base_event(), key.key_id, 0, key.private_key)
@@ -50,7 +50,7 @@ def test_different_key_does_not_verify() -> None:
 
 
 def test_l1_subset_of_l2_schema() -> None:
-    '''An unsigned (L1) event and a signed (L2) event both validate against the one schema.'''
+    """An unsigned (L1) event and a signed (L2) event both validate against the one schema."""
     l1 = _base_event()
     assert validate_event(l1) is None
     assert 'signature' not in l1
@@ -64,7 +64,7 @@ def test_l1_subset_of_l2_schema() -> None:
 
 
 def test_signer_stamps_monotonic_sequence() -> None:
-    '''The signer stamps a monotonic per-tool sequence.'''
+    """The signer stamps a monotonic per-tool sequence."""
     key = generate_tool_key('k1')
     signer = Ed25519Signer(key.key_id, key.private_key)
     a = signer.sign(_base_event())

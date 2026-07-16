@@ -1,9 +1,9 @@
-'''Tool-side A-MCP library: the audit-before-act discipline.
+"""Tool-side A-MCP library: the audit-before-act discipline.
 
 Emit ``attempt``, await a durable accept, only THEN perform the internal domain action, then
 emit the outcome. If the record is rejected (a lie) or unavailable (infra), the action is not
 performed -- fail-closed on record completeness, not on action authorization (design §6.1).
-'''
+"""
 
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -20,61 +20,64 @@ T = TypeVar('T')
 
 
 class EventSigner(Protocol):
-    '''Signs an event, stamping key_id, sequence, and signature (Level 2).'''
+    """Signs an event, stamping key_id, sequence, and signature (Level 2)."""
 
     def sign(self, event: dict) -> dict:
-        '''Return the signed event.'''
+        """Return the signed event."""
         ...
         # end def
+
     # end class
 
 
 class AmcpBlockedError(Exception):
-    '''Raised when an internal action is blocked because no valid record was obtained.'''
+    """Raised when an internal action is blocked because no valid record was obtained."""
 
     def __init__(self, action_type: str, target_ref: str, reason: str) -> None:
-        '''Capture the blocked action for the CallTool result.'''
+        """Capture the blocked action for the CallTool result."""
         super().__init__(f'a-mcp blocked {action_type} on {target_ref}: {reason}')
         self.action_type = action_type
         self.target_ref = target_ref
         self.reason = reason
         # end def
+
     # end class
 
 
 class DeterministicDeps:
-    '''Deterministic id and timestamp source for reproducible runs (no wall clock / uuid4).'''
+    """Deterministic id and timestamp source for reproducible runs (no wall clock / uuid4)."""
 
     def __init__(self) -> None:
-        '''Start the counter at zero.'''
+        """Start the counter at zero."""
         self._n = 0
         # end def
 
     def new_id(self) -> str:
-        '''Return the next deterministic uuid-shaped id.'''
+        """Return the next deterministic uuid-shaped id."""
         self._n += 1
         return f'00000000-0000-4000-8000-{self._n:012x}'
         # end def
 
     def now(self) -> str:
-        '''Return a deterministic ISO-8601 timestamp string.'''
+        """Return a deterministic ISO-8601 timestamp string."""
         moment = datetime.fromtimestamp(_BASE_EPOCH_SECONDS + self._n, tz=UTC)
         return moment.strftime('%Y-%m-%dT%H:%M:%S.000Z')
         # end def
+
     # end class
 
 
 class AmcpSession:
-    '''Wraps internal domain operations in the audit-before-act discipline.
+    """Wraps internal domain operations in the audit-before-act discipline.
 
     A signer's presence is the ONLY difference between L1 and L2 emission; the discipline is
     identical (design INV-1, portable escalation).
-    '''
+    """
 
     def __init__(
         self, transport: AuditTransport, call_id: str, deps: DeterministicDeps, signer: EventSigner | None = None
     ) -> None:
-        '''Bind the session to a transport, a parent call id, id/time deps, and optional signer.'''
+        """Bind the session to a transport, a parent call id, id/time deps, and optional signer."""
         self._transport = transport
         self._call_id = call_id
         self._deps = deps
@@ -82,7 +85,7 @@ class AmcpSession:
         # end def
 
     def _stamp(self, event: dict) -> dict:
-        '''Sign the event if a signer is present (L2), else return it unchanged (L1).'''
+        """Sign the event if a signer is present (L2), else return it unchanged (L1)."""
         return self._signer.sign(event) if self._signer is not None else event
         # end def
 
@@ -95,7 +98,7 @@ class AmcpSession:
         mutates: bool | None = None,
         egress: bool | None = None,
     ) -> T:
-        '''Emit attempt, await accept, perform the action, then emit the outcome.'''
+        """Emit attempt, await accept, perform the action, then emit the outcome."""
         resolved_mutates, resolved_egress = resolve_effect(action_type, mutates, egress)
         base = {
             'id': self._deps.new_id(),
@@ -124,4 +127,5 @@ class AmcpSession:
             raise
             # end try
         # end def
+
     # end class

@@ -1,8 +1,8 @@
-'''L2 walkthrough: signature (non-repudiation) + sequence + reconciliation.
+"""L2 walkthrough: signature (non-repudiation) + sequence + reconciliation.
 
 Blocking is on LIES into the ledger, never on the tool's domain action.
 Run: ``PYTHONPATH=src python -m a_mcp.demo.l2_demo``.
-'''
+"""
 
 import logging
 
@@ -24,7 +24,7 @@ L2_CAP = AuditCapability(level='L2')
 
 
 def _print_ledger(records: list[SealedRecord]) -> None:
-    '''Log each sealed record showing the L2 key/sequence/signature fields.'''
+    """Log each sealed record showing the L2 key/sequence/signature fields."""
     for r in records:
         e = r.event
         signature = (e.get('signature') or '')[:10]
@@ -37,7 +37,7 @@ def _print_ledger(records: list[SealedRecord]) -> None:
 
 
 def _attempt_for(key: ToolKey, seq: int, ref: str) -> dict:
-    '''Build and sign an attempt event with an explicit sequence.'''
+    """Build and sign an attempt event with an explicit sequence."""
     base = {
         'id': f'00000000-0000-4000-8000-{seq + 1:012x}',
         'spec_version': 'a-mcp/0.1',
@@ -55,7 +55,7 @@ def _attempt_for(key: ToolKey, seq: int, ref: str) -> dict:
 
 
 def main() -> None:
-    '''Run the five L2 demonstration scenarios.'''
+    """Run the five L2 demonstration scenarios."""
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     logger.info(_RULE)
     logger.info('A-MCP L2 PoC (Python) — signature (non-repudiation) + sequence + reconciliation')
