@@ -1,7 +1,7 @@
 # Auditable MCP — TypeScript reference implementation
 
-> A conformance demonstration of the [Auditable MCP specification](../spec/auditable-mcp.md).
-> It validates against the shared [`spec/`](../spec) contract. It is **not** a product or a
+> A conformance demonstration of the [Auditable MCP specification](../../spec/auditable-mcp.md).
+> It validates against the shared [`spec/`](../../spec) contract. It is **not** a product or a
 > library to build on.
 
 Reference implementation for **Auditable MCP**: a tool server self-attests its
@@ -85,9 +85,9 @@ ledger, and verifier are **byte-identical** across B1 and B2 — only the transp
 
 ## Conformance vectors
 
-`npm run vectors` regenerates golden files under the repo-shared `../spec/vectors/` that any
+`npm run vectors` regenerates golden files under the repo-shared `../../spec/vectors/` that any
 independent implementation (including the Python port) must reproduce byte-for-byte — the
-Auditable MCP analogue of SEP-3004's conformance vectors. The JSON Schema (`../spec/schema/`) and
+Auditable MCP analogue of SEP-3004's conformance vectors. The JSON Schema (`../../spec/schema/`) and
 these vectors are the language-neutral contract both reference implementations validate against:
 
 - `canonicalization.json` — canonical serialization of primitives (key order, nesting, unicode, scalars).
@@ -105,6 +105,6 @@ npm test             # 50 tests (incl. conformance vectors, MCP wire, L2)
 npm run demo         # L1 end-to-end walkthrough
 npm run demo:l2      # L2: signing, forgery reject, gap + suppression detection
 npm run verify       # verify the built-in scenario ledger (exit code reflects ok)
-npm run schema:json  # emit JSON Schema from the Zod SoT → ../spec/schema/*.json
-npm run vectors      # regenerate conformance golden files → ../spec/vectors/*.json
+npm run schema:json  # emit JSON Schema from the Zod SoT → ../../spec/schema/*.json
+npm run vectors      # regenerate conformance golden files → ../../spec/vectors/*.json
 ```

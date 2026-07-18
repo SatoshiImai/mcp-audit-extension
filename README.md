@@ -1,7 +1,7 @@
 # Auditable MCP
 
 **This is a specification proposal, not a product or SDK.** It proposes an extension to the
-Model Context Protocol (MCP). The [`typescript/`](typescript) and [`python/`](python)
+Model Context Protocol (MCP). The [`reference/typescript/`](reference/typescript) and [`reference/python/`](reference/python)
 directories are **reference implementations that demonstrate conformance** to the
 specification — they exist to prove the spec is implementable and interoperable, not to be
 depended on or shipped.
@@ -32,8 +32,8 @@ record that does not verify.
 | [`spec/auditable-mcp.md`](spec/auditable-mcp.md) | The specification (prose) | ✅ |
 | [`spec/schema/`](spec/schema) | JSON Schema for the audit event and capability | ✅ |
 | [`spec/vectors/`](spec/vectors) | Conformance vectors: canonical bytes, hashes, sealed chain | ✅ |
-| [`typescript/`](typescript) | Reference implementation — a conformance demo | — |
-| [`python/`](python) | Reference implementation, mirror — a conformance demo | — |
+| [`reference/typescript/`](reference/typescript) | Reference implementation — a conformance demo | — |
+| [`reference/python/`](reference/python) | Reference implementation, mirror — a conformance demo | — |
 
 The two implementations validate against the **same** schema and vectors, so they are provably
 interoperable rather than merely similar: they produce byte-identical ledger digests. Neither

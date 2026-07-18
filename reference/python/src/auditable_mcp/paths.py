@@ -6,8 +6,8 @@ located in the repository's `spec/` directory.
 
 from pathlib import Path
 
-# python/src/auditable_mcp/paths.py -> parents[3] is the repository root.
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+# reference/python/src/auditable_mcp/paths.py -> parents[4] is the repository root.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 SPEC_SCHEMA_DIR = _REPO_ROOT / 'spec' / 'schema'
 SPEC_VECTORS_DIR = _REPO_ROOT / 'spec' / 'vectors'
