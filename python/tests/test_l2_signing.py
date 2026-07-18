@@ -19,7 +19,6 @@ def _base_event() -> dict:
         'outcome': 'attempted',
         'params_hash': f'sha256:{"0" * 64}',
     }
-    # end def
 
 
 def test_signed_event_verifies() -> None:
@@ -28,7 +27,6 @@ def test_signed_event_verifies() -> None:
     signed = sign_event(_base_event(), key.key_id, 0, key.private_key)
     assert signed['signature']
     assert verify_event_signature(signed, key.public_key)
-    # end def
 
 
 def test_tampering_invalidates_signature() -> None:
@@ -37,7 +35,6 @@ def test_tampering_invalidates_signature() -> None:
     signed = sign_event(_base_event(), key.key_id, 0, key.private_key)
     forged = {**signed, 'target_resource': {'kind': 'table', 'ref': 'salaries'}}
     assert not verify_event_signature(forged, key.public_key)
-    # end def
 
 
 def test_different_key_does_not_verify() -> None:
@@ -46,7 +43,6 @@ def test_different_key_does_not_verify() -> None:
     other = generate_tool_key('k2')
     signed = sign_event(_base_event(), key.key_id, 0, key.private_key)
     assert not verify_event_signature(signed, other.public_key)
-    # end def
 
 
 def test_l1_subset_of_l2_schema() -> None:
@@ -60,7 +56,6 @@ def test_l1_subset_of_l2_schema() -> None:
     assert validate_event(l2) is None
     assert l2['key_id'] == 'k1'
     assert l2['sequence'] == 7
-    # end def
 
 
 def test_signer_stamps_monotonic_sequence() -> None:
@@ -73,4 +68,3 @@ def test_signer_stamps_monotonic_sequence() -> None:
     assert b['sequence'] == 1
     assert verify_event_signature(a, key.public_key)
     assert verify_event_signature(b, key.public_key)
-    # end def

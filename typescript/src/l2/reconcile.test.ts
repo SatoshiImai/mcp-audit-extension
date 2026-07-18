@@ -29,8 +29,8 @@ describe('reconciliation — boundary egress vs self-report', () => {
     const host = new AuditHost('t#d');
     const boundary = new BoundaryObserver();
 
-    // The tool searched (the query egressed and the gateway saw it) but emitted NO audit
-    // event. This is the lie that signatures and sequence gaps cannot catch.
+    // The gateway saw the search egress, but the tool emitted no audit event, which
+    // signatures and sequence gaps cannot catch.
     boundary.observeEgress('call_abc', SEARCH_ENDPOINT);
 
     const anomalies = reconcile(host.records(), boundary.forCall('call_abc'), 'call_abc');

@@ -15,7 +15,6 @@ from auditable_mcp.paths import SPEC_VECTORS_DIR
 def _load(name: str) -> object:
     """Load a golden vector file from the shared spec directory."""
     return json.loads((SPEC_VECTORS_DIR / name).read_text(encoding='utf-8'))
-    # end def
 
 
 def test_canonicalization_vectors() -> None:
@@ -25,8 +24,6 @@ def test_canonicalization_vectors() -> None:
     for case in cases:
         assert canonicalize(case['value']) == case['canonical']
         assert sha256_hex(case['canonical']) == case['sha256']
-        # end for
-    # end def
 
 
 def test_event_vectors() -> None:
@@ -36,8 +33,6 @@ def test_event_vectors() -> None:
     for case in cases:
         assert canonicalize(case['event']) == case['canonical']
         assert sha256_hex(case['canonical']) == case['sha256']
-        # end for
-    # end def
 
 
 def test_chain_vector() -> None:
@@ -50,6 +45,4 @@ def test_chain_vector() -> None:
         recomputed = compute_record_hash(record['event'], record['seq'], record['host_ts'], prev)
         assert recomputed == record['record_hash']
         prev = recomputed
-        # end for
     assert prev == chain['digest']
-    # end def

@@ -17,36 +17,28 @@ class ToolKey:
     key_id: str
     public_key: Ed25519PublicKey
     private_key: Ed25519PrivateKey
-    # end class
 
 
 def generate_tool_key(key_id: str) -> ToolKey:
     """Generate a fresh Ed25519 tool key under the given key_id."""
     private_key = Ed25519PrivateKey.generate()
     return ToolKey(key_id=key_id, public_key=private_key.public_key(), private_key=private_key)
-    # end def
 
 
 class KeyRegistry:
     """Maps key_id -> registered public key (established out-of-band at onboarding).
 
-    A key_id the host has never onboarded is untrusted: its events are rejected as
-    unverifiable (a lie into the ledger), never silently accepted.
+    A key_id the host has never onboarded is untrusted; its events are rejected as unverifiable.
     """
 
     def __init__(self) -> None:
         """Initialize an empty registry."""
         self._keys: dict[str, Ed25519PublicKey] = {}
-        # end def
 
     def register(self, key_id: str, public_key: Ed25519PublicKey) -> None:
         """Register a public key under its key_id."""
         self._keys[key_id] = public_key
-        # end def
 
     def get(self, key_id: str) -> Ed25519PublicKey | None:
         """Return the registered public key for key_id, or None if unknown."""
         return self._keys.get(key_id)
-        # end def
-
-    # end class

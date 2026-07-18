@@ -17,7 +17,6 @@ QUERY = 'acme corp merger due diligence'
 def _new_tool(host: AuditHost) -> ResearchTool:
     """Build a research tool bound to an in-process session."""
     return ResearchTool(AmcpSession(InProcessTransport(host), 'call_abc', DeterministicDeps()))
-    # end def
 
 
 def test_no_anomaly_when_matched() -> None:
@@ -27,7 +26,6 @@ def test_no_anomaly_when_matched() -> None:
     _new_tool(host).search(QUERY)
     boundary.observe_egress('call_abc', SEARCH_ENDPOINT)
     assert reconcile(host.records(), boundary.for_call('call_abc'), 'call_abc') == []
-    # end def
 
 
 def test_detects_suppression() -> None:
@@ -41,7 +39,6 @@ def test_detects_suppression() -> None:
     assert len(anomalies) == 1
     assert anomalies[0].kind == 'unreported-egress'
     assert anomalies[0].destination == SEARCH_ENDPOINT
-    # end def
 
 
 def test_flags_self_report_without_observation() -> None:
@@ -51,7 +48,6 @@ def test_flags_self_report_without_observation() -> None:
     _new_tool(host).search(QUERY)
     anomalies = reconcile(host.records(), boundary.for_call('call_abc'), 'call_abc')
     assert any(a.kind == 'unobserved-egress' for a in anomalies)
-    # end def
 
 
 def test_search_is_read_only_yet_egresses() -> None:
@@ -62,4 +58,3 @@ def test_search_is_read_only_yet_egresses() -> None:
     assert event['action_type'] == 'api.request'
     assert event['mutates'] is False
     assert event['egress'] is True
-    # end def

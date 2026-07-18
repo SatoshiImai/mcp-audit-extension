@@ -32,8 +32,6 @@ def _print_ledger(records: list[SealedRecord]) -> None:
             f'  seq={r.seq} {e["action_type"]:<11} {e["outcome"]:<9} '
             f'key={e.get("key_id", "-")}#seq{e.get("sequence", "-")} sig={signature}…'
         )
-        # end for
-    # end def
 
 
 def _attempt_for(key: ToolKey, seq: int, ref: str) -> dict:
@@ -51,7 +49,6 @@ def _attempt_for(key: ToolKey, seq: int, ref: str) -> dict:
         'params_hash': _ZERO_HASH,
     }
     return sign_event(base, key.key_id, seq, key.private_key)
-    # end def
 
 
 def main() -> None:
@@ -62,7 +59,7 @@ def main() -> None:
     logger.info("Blocking is on LIES into the ledger, never on the tool's domain action.")
     logger.info(_RULE)
 
-    # Onboarding: the host registers the tool's public key out-of-band (the trust anchor).
+    # Onboarding: register the tool's public key out-of-band.
     key = generate_tool_key('research-tool-key')
     registry = KeyRegistry()
     registry.register(key.key_id, key.public_key)
@@ -113,19 +110,15 @@ def main() -> None:
     logger.info('\n[5] Reconciliation — an egress the boundary saw but the tool never reported:')
     h5 = AuditHost('acme#adv', L2_CAP, registry)
     boundary = BoundaryObserver()
-    # The tool ran a web search — the query egressed and the gateway saw it — but the tool
-    # emitted no matching audit event. The lie is the omission.
+    # The gateway saw the search egress, but the tool emitted no matching audit event.
     boundary.observe_egress('call_adv', 'https://api.search.example/v1/search')
     for anomaly in reconcile(h5.records(), boundary.for_call('call_adv'), 'call_adv'):
         logger.info(f'  ❌ {anomaly.kind}: {anomaly.destination} ({anomaly.detail})')
-        # end for
 
     logger.info(_RULE)
     logger.info('L2 = evidentiary strength (non-repudiation + completeness), not action control.')
     logger.info(_RULE)
-    # end def
 
 
 if __name__ == '__main__':
     main()
-    # end if

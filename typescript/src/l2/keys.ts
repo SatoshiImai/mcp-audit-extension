@@ -1,9 +1,8 @@
 import { generateKeyPairSync, type KeyObject } from 'node:crypto';
 
-// L2 key material. A tool holds a private key and stamps its self-attestations with a
-// signature; the host verifies against a public key registered out-of-band at onboarding
-// (design §3.2 / §8 — the operator's curator/onboarding flow). Registration is the trust anchor; the
-// signature then gives non-repudiation, not real-time control.
+// L2 key material. A tool holds a private key and signs its self-attestations; the host
+// verifies against a public key registered out-of-band at onboarding. The signature gives
+// non-repudiation, not real-time control.
 
 export interface ToolKey {
   keyId: string;

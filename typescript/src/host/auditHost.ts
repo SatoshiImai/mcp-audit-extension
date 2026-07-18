@@ -7,10 +7,9 @@ import { verifyEventSignature } from '../l2/signing.js';
 import type { KeyRegistry } from '../l2/keys.js';
 
 // Host-side audit subsystem. Receives self-attested events, decides accept/reject/unavailable,
-// and seals accepted records into the tamper-evident ledger. It is a monitoring camera, not a
-// control point: it never authorizes the tool's domain action (that is the operator's allowlist). The
-// only thing it blocks is a lie into the ledger — a malformed, forged, or replayed record
-// gets `reject` and never pollutes the chain (design §0, §6.1).
+// and seals accepted records into the tamper-evident ledger. It does not authorize domain
+// actions (that is the operator's allowlist); it only rejects malformed, forged, or replayed
+// records so they never enter the chain.
 
 export interface IntegrityAnomaly {
   id: string;
@@ -37,7 +36,7 @@ export class AuditHost {
   private readonly anomalies: IntegrityAnomaly[] = [];
   private hostClock = 0;
 
-  // Demo switch: simulate Tier1 durability failure (infra), which must fail-closed.
+  // Demo switch: simulate a durability failure, which must fail closed.
   unavailable = false;
 
   constructor(partition: string, capability: AuditCapability = DEFAULT_L1_CAPABILITY, keyRegistry?: KeyRegistry) {
@@ -60,12 +59,9 @@ export class AuditHost {
     return `host-ts:${this.hostClock}`;
   }
 
-  // L2 record-integrity check. Verifies non-repudiation (signature over a registered key)
-  // and per-tool sequence continuity. A forged/altered/unsigned record or a replayed
-  // sequence is a lie into the ledger → `reject`. A forward gap means a prior event was
-  // suppressed → flagged (the suppression is already committed; rejecting the current event
-  // would not recover the missing one). No-op under L1. This detects tampering; it never
-  // controls the tool's domain action.
+  // L2 check: verify the signature (over a registered key) and per-tool sequence. Unsigned,
+  // forged, or replayed records are rejected. A forward sequence gap is flagged but not
+  // rejected, since the missing event cannot be recovered. No-op under L1.
   private checkL2(event: AuditEvent): { reject: false } | { reject: true; reason: string } {
     if (this.capability.level !== 'L2') return { reject: false };
 
@@ -106,17 +102,17 @@ export class AuditHost {
       this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'attempt must carry outcome=attempted' });
       return { status: 'reject', reason: 'attempt-must-be-attempted' };
     }
-    // L2: reject forged/unsigned/replayed records before they touch the ledger.
+    // L2: reject forged/unsigned/replayed records before sealing.
     const l2 = this.checkL2(event);
     if (l2.reject) {
       this.rejectedIds.add(event.id);
       return { status: 'reject', reason: l2.reason };
     }
-    // Infra durability failure → fail-closed. Not the tool's fault; retryable.
+    // Durability failure: fail closed (retryable).
     if (this.unavailable) {
       return { status: 'unavailable', reason: 'tier1-durability-failure', retryable: true };
     }
-    // Replayed attempt id = a forged/duplicate record → reject the lie, keep the ledger clean.
+    // Replayed attempt id: reject as a duplicate.
     if (this.acceptedAttempts.has(event.id)) {
       this.rejectedIds.add(event.id);
       this.anomalies.push({ id: event.id, kind: 'attempt-replay', detail: 'duplicate attempt id' });
@@ -127,8 +123,8 @@ export class AuditHost {
     return { status: 'accept', seq: sealed.seq, record_hash: sealed.record_hash };
   }
 
-  // Outcome is not a completeness gate; it is appended. Anomalies (outcome for an id that
-  // was never accepted, or was rejected) are flagged — the natural tamper-evidence byproduct.
+  // Outcome is appended, not gated. An outcome for an id that was never accepted, or was
+  // rejected, is flagged.
   handleOutcome(raw: unknown): void {
     const parsed = auditEventSchema.safeParse(raw);
     if (!parsed.success) {
@@ -136,8 +132,7 @@ export class AuditHost {
       return;
     }
     const event = parsed.data;
-    // L2: an outcome with an invalid signature/sequence is a lie too; flag and drop it
-    // (an outcome is a notification, so there is no response to reject with).
+    // L2: drop an outcome with an invalid signature/sequence (a notification has no reply).
     if (this.checkL2(event).reject) return;
     if (this.rejectedIds.has(event.id)) {
       this.anomalies.push({ id: event.id, kind: 'outcome-after-reject', detail: `outcome=${event.outcome} for rejected id` });

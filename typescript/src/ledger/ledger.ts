@@ -1,10 +1,8 @@
 import type { AuditEvent } from '../schema/event.js';
 import { canonicalize, sha256Hex } from './canonical.js';
 
-// Sealed record = tool-emitted event + host-assigned ledger fields. In a real deployment
-// these tiers map to DynamoDB (Tier1 durable accept) + Sealing Lambda → S3 Object Lock
-// (Tier2 WORM + hash-chain), design audit-integrity §2. The PoC simulates both locally and
-// deterministically — the standardization-relevant artifact is the hash chain, not AWS.
+// A sealed record is a tool-emitted event plus host-assigned fields (sequence, prev_hash,
+// record_hash). Local deterministic simulation of a tamper-evident append-only ledger.
 
 export const GENESIS_HASH = '0'.repeat(64);
 
@@ -27,8 +25,7 @@ export function computeRecordHash(
   return sha256Hex(preimage);
 }
 
-// Append-only, per-partition ledger. A partition is a tenant#day-like scope; the PoC keeps
-// one in memory. Append assigns the next seq and links the hash chain.
+// Append-only, per-partition ledger. Append assigns the next sequence and links the chain.
 export class Ledger {
   private records: SealedRecord[] = [];
 
@@ -48,14 +45,13 @@ export class Ledger {
     return this.records;
   }
 
-  // Digest anchored out-of-band (Tier3). Rewriting history without invalidating this is
-  // infeasible because the tail commits to the whole chain.
+  // Tail digest, anchored out-of-band. Rewriting history invalidates it.
   digest(): string {
     const tail = this.records[this.records.length - 1];
     return tail ? tail.record_hash : GENESIS_HASH;
   }
 
-  // Test/demo affordance: expose the mutable array so a tamper can be injected and caught.
+  // Test/demo affordance: expose the mutable array to inject a tamper.
   unsafeMutableRecords(): SealedRecord[] {
     return this.records;
   }

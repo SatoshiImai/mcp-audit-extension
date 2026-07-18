@@ -28,8 +28,6 @@ def _print_ledger(records: list[SealedRecord]) -> None:
             f'  seq={r.seq} {e["action_type"]:<11} {e["outcome"]:<9} '
             f'mut={int(e["mutates"])} egr={int(e["egress"])} {target} hash={r.record_hash[:12]}…'
         )
-        # end for
-    # end def
 
 
 def _report(label: str, records: list[SealedRecord], anchored: str | None = None) -> None:
@@ -39,8 +37,6 @@ def _report(label: str, records: list[SealedRecord], anchored: str | None = None
     logger.info(f'  {label}: {status}  [{report.count} records, digest={report.computed_digest[:12]}…]')
     for issue in report.issues:
         logger.info(f'     ↳ seq={issue.seq} {issue.kind}: {issue.detail}')
-        # end for
-    # end def
 
 
 def main() -> None:
@@ -99,14 +95,11 @@ def main() -> None:
         logger.info('  ❌ action proceeded despite no durable record (BUG)')
     except AmcpBlockedError as err:
         logger.info(f'  ✅ blocked: {err.action_type} on {err.target_ref} ({err.reason}) — no record, no action')
-        # end try
 
     logger.info(_RULE)
-    logger.info('Integrity failures above are DELIBERATE demonstrations of detection.')
+    logger.info('The integrity failures above are intentional; they show detection working.')
     logger.info(_RULE)
-    # end def
 
 
 if __name__ == '__main__':
     main()
-    # end if

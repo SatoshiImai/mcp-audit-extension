@@ -1,11 +1,9 @@
 import type { SealedRecord } from '../ledger/ledger.js';
 
 // Reconciliation cross-checks self-reported audit events against facts the host observes
-// independently at the boundary (e.g. a network egress a gateway sees). Its point is the
-// tamper-evidence byproduct that matters most: a tool that DOES something and DOESN'T report
-// it. An observed egress with no self-report = suppression by omission — the one thing
-// signatures and sequence gaps alone cannot catch, because the tool simply never emits.
-// This is detection feeding governance (revisit the allowlist), not real-time control.
+// independently at the boundary (e.g. an egress a gateway sees). An observed egress with no
+// self-report is a suppression that signatures and sequence gaps cannot catch, since the
+// tool simply never emits the event.
 
 export interface EgressObservation {
   call_id: string;
@@ -46,7 +44,6 @@ export function reconcile(
   const anomalies: ReconcileAnomaly[] = [];
   for (const dest of observed) {
     if (!reported.has(dest)) {
-      // The killer case: the tool egressed and hid it.
       anomalies.push({ call_id: callId, kind: 'unreported-egress', destination: dest, detail: 'observed egress with no self-report' });
     }
   }

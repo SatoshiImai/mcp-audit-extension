@@ -12,7 +12,6 @@ def test_clean_ledger_verifies() -> None:
     assert report.ok
     assert report.issues == []
     assert report.computed_digest == anchored
-    # end def
 
 
 def test_detects_tampering() -> None:
@@ -24,7 +23,6 @@ def test_detects_tampering() -> None:
     assert not report.ok
     assert any(i.kind == 'record-hash-mismatch' for i in report.issues)
     assert any(i.kind == 'digest-mismatch' for i in report.issues)
-    # end def
 
 
 def test_detects_dropped_record() -> None:
@@ -35,4 +33,3 @@ def test_detects_dropped_record() -> None:
     report = verify_ledger(records)
     assert not report.ok
     assert any(i.kind in ('seq-gap', 'prev-hash-mismatch') for i in report.issues)
-    # end def

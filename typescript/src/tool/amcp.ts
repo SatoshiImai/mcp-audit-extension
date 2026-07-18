@@ -4,10 +4,9 @@ import { hashParams } from '../ledger/canonical.js';
 import type { AttemptResponse, AuditTransport } from '../transport/transport.js';
 import type { EventSigner } from '../l2/signing.js';
 
-// Tool-side Auditable MCP library. Implements audit-before-act: emit `attempt`, await a durable
-// accept, only THEN perform the internal domain action, then emit the outcome. If the
-// record is rejected (a lie) or unavailable (infra), the action is not performed —
-// fail-closed on record completeness, not on action authorization (design §6.1).
+// Tool-side library. Implements audit-before-act: emit `attempt`, await a durable accept,
+// then perform the internal domain action, then emit the outcome. If the record is rejected
+// or unavailable, the action is not performed.
 
 export class AmcpBlockedError extends Error {
   constructor(
@@ -37,8 +36,7 @@ export class AmcpSession {
     private readonly transport: AuditTransport,
     private readonly callId: string,
     private readonly deps: AmcpDeps,
-    // Optional signer. Its presence is the ONLY difference between L1 and L2 emission —
-    // the audit-before-act logic below is identical (design INV-1, portable escalation).
+    // Optional signer. Its presence is the only difference between L1 and L2 emission.
     private readonly signer?: EventSigner,
   ) {}
 
@@ -64,7 +62,7 @@ export class AmcpSession {
     const attempt = this.stamp({ ...base, outcome: 'attempted' });
     const resp: AttemptResponse = await this.transport.sendAttempt(attempt);
     if (resp.status !== 'accept') {
-      // No valid record → do NOT perform the action.
+      // No valid record: do not perform the action.
       throw new AmcpBlockedError(spec.action_type, spec.target_resource.ref, resp.reason);
     }
 

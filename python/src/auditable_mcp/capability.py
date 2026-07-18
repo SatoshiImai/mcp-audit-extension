@@ -1,7 +1,7 @@
-"""Host-declared audit capability (design §3.3).
+"""Host-declared audit capability requirements.
 
-The host owns the guarantee level; the tool complies or fails observably. Declaration flows
-host->tool only, so an untrusted tool cannot weaken record integrity via what it declares.
+Declarations flow strictly from host to tool. Tools must comply with the declared
+level and disposition parameters, or fail observably.
 """
 
 from dataclasses import dataclass
@@ -17,7 +17,6 @@ class AuditCapability:
     block_disposition: tuple[str, ...] = ('abort',)  # 'abort' is the safe floor; 'partial' is opt-in
     outcome_mode: str = 'batched'  # 'batched' | 'request'
     outcome_batch_window_ms: int = 200
-    # end class
 
 
 DEFAULT_L1_CAPABILITY = AuditCapability()

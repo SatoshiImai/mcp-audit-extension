@@ -1,20 +1,13 @@
-// action_type vocabulary — Core Enum + ext.<vendor>.<op> hybrid (design §4.1).
-// Two design rules encoded here:
-//  - Syntax is validated strictly; "is it core?" is a soft classification, never a
-//    validation reject. This keeps a v0.1 host from rejecting a future v0.2 core value
-//    (forward-compat, §4.1 ⑤).
-//  - The (mutates, egress) effect axis is orthogonal to action_type. When effect cannot
-//    be positively established as non-mutating/internal, it fails safe to mutating+egress
-//    (§4.1 ②), because ext.* and api.request hide the security axis in the verb.
+// action_type vocabulary: Core Enum + ext.<vendor>.<op> hybrid.
+// Syntax is validated strictly; core membership is a soft classification (unknown values are
+// accepted for forward-compat). The (mutates, egress) effect axis is orthogonal to the verb
+// and fails safe to mutating+egress when it cannot be positively established.
 
-// Syntactically valid dotted lowercase token. Two shapes:
-//  - ext form: `ext.<vendor>.<op...>` — the literal `ext` prefix requires >= 3 segments.
-//  - other:    `<domain>.<op...>` — >= 2 segments, and must NOT start with the reserved
-//    `ext.` prefix (so `ext.stripe` cannot sneak through as a plain 2-segment token).
+// Dotted lowercase token. ext form requires >= 3 segments; other forms >= 2 and must not
+// start with the reserved ext. prefix.
 export const ACTION_TYPE_RE = /^(ext(\.[a-z0-9_]+){2,}|(?!ext(\.|$))[a-z0-9_]+(\.[a-z0-9_]+)+)$/;
 
-// Core Enum v0.1 — 7 values. Only "semantically pure" internal operations live here;
-// queue/pubsub and compute-provisioning deliberately stay in ext.* (design §4.1).
+// Core Enum v0.1 — 7 values. Queue/pubsub and compute-provisioning stay in ext.*.
 export const CORE_ACTION_TYPES = [
   'db.read',
   'db.write',
@@ -46,19 +39,17 @@ export interface Effect {
   egress: boolean;
 }
 
-// Effect the tool self-declares is advisory; the host may override with its own
-// classification (design §4.1 ③). This resolves the declared effect against the
-// fail-safe floor: anything not positively known to be non-mutating/internal is treated
-// as mutating+egress so unknown/ext actions never look lower-risk than they are.
+// The declared effect is advisory; the host may override it. Resolves against the fail-safe
+// floor: anything not known to be non-mutating/internal becomes mutating+egress.
 export function resolveEffect(actionType: string, declared: Partial<Effect> | undefined): Effect {
   if (declared?.mutates !== undefined && declared?.egress !== undefined) {
     return { mutates: declared.mutates, egress: declared.egress };
   }
-  // Only well-known non-mutating core reads may relax to a benign effect.
+  // Well-known non-mutating core reads relax to a benign effect.
   const benignReads: ReadonlySet<string> = new Set(['db.read', 'fs.read', 'secret.read']);
   if (benignReads.has(actionType)) {
     return { mutates: declared?.mutates ?? false, egress: declared?.egress ?? false };
   }
-  // Fail-safe: unknown / ext.* / api.request without a full declaration → highest scrutiny.
+  // Fail-safe: unknown / ext.* / api.request without a full declaration.
   return { mutates: declared?.mutates ?? true, egress: declared?.egress ?? true };
 }

@@ -1,17 +1,13 @@
 import type { AuditEvent } from '../schema/event.js';
 import type { AuditCapability } from '../schema/capability.js';
 
-// AuditTransport is deliberately shaped to the MCP elicitation wire contract (design §6):
-// a server→client REQUEST with a response (attempt), plus a lighter outcome delivery, plus
-// capability negotiation and cancellation. Keeping this faithful is what makes the
-// in-process implementation zero-waste: swapping InProcessTransport for an MCP-SDK-backed
-// transport is a mechanical change, and everything above this interface is reused.
+// AuditTransport is shaped to the MCP elicitation wire: a server->client request/response
+// for attempt, a lighter outcome delivery, plus capability negotiation. Keeping it faithful
+// lets an MCP-SDK-backed transport drop in without changing anything above this interface.
 
-// Response to audit/attempt. accept = record durably persisted (proceed). reject = the
-// RECORD is invalid/forged (a lie into the ledger) — do not proceed, integrity fault.
-// unavailable = infra could not persist — do not proceed (fail-closed). None of these
-// authorize the domain action; that is the operator's allowlist. Fail-closed here is about record
-// completeness, not action control (§6.1).
+// Response to audit/attempt. accept = record durably persisted (proceed). reject = invalid
+// or forged record (do not proceed). unavailable = transient persistence failure (do not
+// proceed). None authorize the domain action; fail-closed is about record completeness.
 export type AttemptResponse =
   | { status: 'accept'; seq: number; record_hash: string }
   | { status: 'reject'; reason: string }
@@ -28,11 +24,9 @@ export interface AuditTransport {
   // Host declares what it requires; the tool complies or fails observably.
   negotiate(): AuditCapability;
 
-  // Blocking request/response. Resolves with accept/reject/unavailable, or throws
-  // AuditCancelledError when the surrounding context is torn down (MCP notifications/cancelled).
+  // Blocking request/response. Throws AuditCancelledError when the context is torn down.
   sendAttempt(event: AuditEvent): Promise<AttemptResponse>;
 
-  // Outcome (success/failed). Delivery mode is host-declared; the PoC records it the same
-  // way. Not a completeness gate — loss is caught by sequence gaps (§6.1).
+  // Outcome (success/failed). Not a completeness gate; loss is caught by sequence gaps.
   sendOutcome(event: AuditEvent): Promise<void>;
 }

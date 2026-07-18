@@ -2,10 +2,8 @@ import { sign, verify, type KeyObject } from 'node:crypto';
 import type { AuditEvent } from '../schema/event.js';
 import { canonicalize } from '../ledger/canonical.js';
 
-// L2 signing. The signature covers canonical(event minus signature) — so key_id and sequence
-// are inside the signed bytes, and tampering any field (including sequence) invalidates it.
-// This is what lets the host reject a forged/altered record: the "block a lie into the
-// camera" primitive (design §6.1), which is detection of tampering, not control of actions.
+// L2 signing. The signature covers canonical(event minus signature), so key_id and sequence
+// are inside the signed bytes and tampering any field invalidates it.
 
 function signatureInput(event: AuditEvent): Buffer {
   // canonicalize omits undefined-valued keys, so a not-yet-set signature is excluded.
@@ -29,9 +27,8 @@ export function verifyEventSignature(event: AuditEvent, publicKey: KeyObject): b
   }
 }
 
-// Tool-side signer: holds the private key and a monotonic per-tool sequence counter. The
-// same counter advances across every emitted event (attempt and outcome), so a suppressed
-// event leaves a gap the host detects (design §3.2 L2).
+// Tool-side signer: holds the private key and a monotonic per-tool sequence counter that
+// advances across every emitted event, so a suppressed event leaves a detectable gap.
 export interface EventSigner {
   sign(event: AuditEvent): AuditEvent;
 }

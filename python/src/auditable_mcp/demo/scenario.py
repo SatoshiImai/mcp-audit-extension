@@ -1,8 +1,10 @@
-"""A reproducible L1 scenario shared by the demo and the tests.
+"""Deterministic canonical JSON serialization and hashing.
 
-A first-party research tool performs three internal operations that deliberately span the
-(mutates, egress) axis: a web search (read-only, yet the query egresses), a note write, and
-a note read.
+Canonical form rules:
+- Object keys sorted recursively.
+- No insignificant whitespace.
+- Non-ASCII characters preserved.
+- Null values preserved.
 """
 
 from auditable_mcp.amcp import AmcpSession, DeterministicDeps
@@ -20,4 +22,3 @@ def run_clean_scenario(partition: str = 'acme#2026-07-15') -> AuditHost:
     tool.save_note('acme', 'merger rumour confirmed by two sources')  # db.write
     tool.list_notes()  # db.read
     return host
-    # end def

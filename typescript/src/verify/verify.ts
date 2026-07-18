@@ -1,9 +1,8 @@
 import { auditEventSchema } from '../schema/event.js';
 import { GENESIS_HASH, computeRecordHash, type SealedRecord } from '../ledger/ledger.js';
 
-// Verifier — proves "non-tampered + complete" over a sealed ledger, the evidence artifact
-// Auditable MCP produces. It recomputes the hash chain, detects sequence gaps (loss), checks the
-// anchored digest, and correlates attempts with outcomes. It trusts nothing but the bytes.
+// Verifier: proves non-tampering and completeness over a sealed ledger. Recomputes the hash
+// chain, detects sequence gaps, checks the anchored digest, and correlates attempts with outcomes.
 
 export interface VerifyIssue {
   seq: number | null;
@@ -29,9 +28,8 @@ export function verifyLedger(records: readonly SealedRecord[], anchoredDigest?: 
   const issues: VerifyIssue[] = [];
   const attemptedIds = new Set<string>();
 
-  // Recompute the chain independently from the record bytes. Chaining on the RECOMPUTED
-  // hash (not the stored one) means any mutation of an event body propagates to the tail,
-  // so a single tampered field breaks the anchored digest — that is the tamper proof.
+  // Recompute the chain from the record bytes. Chaining on the recomputed hash (not the
+  // stored one) propagates any body mutation to the tail digest.
   let prevRecomputed = GENESIS_HASH;
 
   records.forEach((rec, i) => {
@@ -59,7 +57,7 @@ export function verifyLedger(records: readonly SealedRecord[], anchoredDigest?: 
       issues.push({ seq: rec.seq, kind: 'record-hash-mismatch', detail: 'stored record_hash != recomputed' });
     }
 
-    // 5. Attempt/outcome correlation — an outcome with no preceding attempt is a lie.
+    // 5. An outcome with no preceding attempt is an inconsistency.
     if (rec.event.outcome === 'attempted') {
       attemptedIds.add(rec.event.id);
     } else if (!attemptedIds.has(rec.event.id)) {

@@ -22,7 +22,6 @@ def _attempt(n: int) -> dict:
         'outcome': 'attempted',
         'params_hash': f'sha256:{"0" * 64}',
     }
-    # end def
 
 
 def _new_host() -> tuple[AuditHost, ToolKey]:
@@ -32,7 +31,6 @@ def _new_host() -> tuple[AuditHost, ToolKey]:
     registry.register(key.key_id, key.public_key)
     host = AuditHost('t#d', L2_CAP, registry)
     return host, key
-    # end def
 
 
 def test_accepts_valid_signed_attempt() -> None:
@@ -41,7 +39,6 @@ def test_accepts_valid_signed_attempt() -> None:
     signed = sign_event(_attempt(1), key.key_id, 0, key.private_key)
     assert host.handle_attempt(signed).status == 'accept'
     assert len(host.records()) == 1
-    # end def
 
 
 def test_rejects_unsigned_under_l2() -> None:
@@ -51,7 +48,6 @@ def test_rejects_unsigned_under_l2() -> None:
     assert res.status == 'reject'
     assert res.reason == 'l2-unsigned'
     assert len(host.records()) == 0
-    # end def
 
 
 def test_rejects_unregistered_key() -> None:
@@ -60,7 +56,6 @@ def test_rejects_unregistered_key() -> None:
     stranger = generate_tool_key('stranger')
     signed = sign_event(_attempt(1), stranger.key_id, 0, stranger.private_key)
     assert host.handle_attempt(signed).reason == 'unknown-key'
-    # end def
 
 
 def test_rejects_forged_record() -> None:
@@ -70,7 +65,6 @@ def test_rejects_forged_record() -> None:
     forged = {**signed, 'target_resource': {'kind': 'table', 'ref': 'salaries'}}
     assert host.handle_attempt(forged).reason == 'signature-invalid'
     assert len(host.records()) == 0
-    # end def
 
 
 def test_rejects_replayed_sequence() -> None:
@@ -79,7 +73,6 @@ def test_rejects_replayed_sequence() -> None:
     host.handle_attempt(sign_event(_attempt(1), key.key_id, 0, key.private_key))
     replay = sign_event(_attempt(2), key.key_id, 0, key.private_key)
     assert host.handle_attempt(replay).reason == 'sequence-replay'
-    # end def
 
 
 def test_flags_sequence_gap_but_accepts() -> None:
@@ -89,4 +82,3 @@ def test_flags_sequence_gap_but_accepts() -> None:
     res = host.handle_attempt(sign_event(_attempt(2), key.key_id, 2, key.private_key))
     assert res.status == 'accept'
     assert any(a.kind == 'sequence-gap' for a in host.anomalies())
-    # end def

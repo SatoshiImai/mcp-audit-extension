@@ -1,8 +1,10 @@
-"""Tool-side Auditable MCP library: the audit-before-act discipline.
+"""Tool-side Auditable MCP session.
 
-Emit ``attempt``, await a durable accept, only THEN perform the internal domain action, then
-emit the outcome. If the record is rejected (a lie) or unavailable (infra), the action is not
-performed -- fail-closed on record completeness, not on action authorization (design §6.1).
+Enforces the audit-before-act discipline:
+1. Emit attempt event.
+2. Await durable accept from host.
+3. Perform internal domain action (blocked if rejected/unavailable).
+4. Emit outcome event (success/failed).
 """
 
 from collections.abc import Callable
@@ -25,9 +27,6 @@ class EventSigner(Protocol):
     def sign(self, event: dict) -> dict:
         """Return the signed event."""
         ...
-        # end def
-
-    # end class
 
 
 class AmcpBlockedError(Exception):
@@ -35,13 +34,10 @@ class AmcpBlockedError(Exception):
 
     def __init__(self, action_type: str, target_ref: str, reason: str) -> None:
         """Capture the blocked action for the CallTool result."""
-        super().__init__(f'a-mcp blocked {action_type} on {target_ref}: {reason}')
+        super().__init__(f'blocked {action_type} on {target_ref}: {reason}')
         self.action_type = action_type
         self.target_ref = target_ref
         self.reason = reason
-        # end def
-
-    # end class
 
 
 class DeterministicDeps:
@@ -50,28 +46,22 @@ class DeterministicDeps:
     def __init__(self) -> None:
         """Start the counter at zero."""
         self._n = 0
-        # end def
 
     def new_id(self) -> str:
         """Return the next deterministic uuid-shaped id."""
         self._n += 1
         return f'00000000-0000-4000-8000-{self._n:012x}'
-        # end def
 
     def now(self) -> str:
         """Return a deterministic ISO-8601 timestamp string."""
         moment = datetime.fromtimestamp(_BASE_EPOCH_SECONDS + self._n, tz=UTC)
         return moment.strftime('%Y-%m-%dT%H:%M:%S.000Z')
-        # end def
-
-    # end class
 
 
 class AmcpSession:
-    """Wraps internal domain operations in the audit-before-act discipline.
+    """Wraps internal operations in the audit-before-act lifecycle.
 
-    A signer's presence is the ONLY difference between L1 and L2 emission; the discipline is
-    identical (design INV-1, portable escalation).
+    Note: L1 and L2 emission disciplines are identical. L2 only adds a signer.
     """
 
     def __init__(
@@ -82,12 +72,10 @@ class AmcpSession:
         self._call_id = call_id
         self._deps = deps
         self._signer = signer
-        # end def
 
     def _stamp(self, event: dict) -> dict:
         """Sign the event if a signer is present (L2), else return it unchanged (L1)."""
         return self._signer.sign(event) if self._signer is not None else event
-        # end def
 
     def audited(
         self,
@@ -114,18 +102,13 @@ class AmcpSession:
         attempt = self._stamp({**base, 'outcome': 'attempted'})
         response = self._transport.send_attempt(attempt)
         if response.status != 'accept':
-            # No valid record -> do NOT perform the action.
+            # No valid record: do not perform the action.
             raise AmcpBlockedError(action_type, target_resource['ref'], response.reason or 'blocked')
-            # end if
         try:
             result = perform()
             self._transport.send_outcome(self._stamp({**base, 'id': attempt['id'], 'outcome': 'success'}))
             return result
         except Exception:
-            # Record the failed outcome, then re-raise (never swallow).
+            # Seal the failed outcome, then re-raise.
             self._transport.send_outcome(self._stamp({**base, 'id': attempt['id'], 'outcome': 'failed'}))
             raise
-            # end try
-        # end def
-
-    # end class

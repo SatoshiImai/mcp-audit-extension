@@ -27,7 +27,7 @@ describe('Auditable MCP over MCP wire (B2)', () => {
       expect(r2.isError).toBeFalsy();
 
       // The host ledger captured the tool-INTERNAL operations (not just the CallTool boundary):
-      // one api.request (the search, whose query egressed) + one db.write, each attempted → success.
+      // one api.request (the search, whose query egressed) + one db.write, each attempted then success.
       const events = host.records().map((r) => `${r.event.action_type}:${r.event.outcome}`);
       expect(events).toEqual(['api.request:attempted', 'api.request:success', 'db.write:attempted', 'db.write:success']);
 

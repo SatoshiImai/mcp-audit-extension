@@ -1,14 +1,8 @@
 import type { AmcpSession } from './amcp.js';
 
-// A dummy first-party MCP tool: a research assistant. Each internal domain operation is
-// wrapped in the audit-before-act discipline, so the ledger records what the tool actually
-// did inside — the tool-internal granularity that boundary-level audit cannot see.
-//
-// The three operations deliberately span the (mutates, egress) axis, including the case that
-// naive "reads are safe" thinking misses: a web search MUTATES NOTHING yet EGRESSES the
-// query. The secret leaves in the keywords ("AcmeCorp merger due diligence" tells the search
-// provider you are doing M&A on AcmeCorp) even though nothing comes back changed. That is why
-// egress is an axis of its own, and why `api.request` is not in the benign-read relaxation.
+// Dummy first-party MCP tool (research assistant). Its three operations span the
+// (mutates, egress) axis. A web search is read-only (mutates=false) but leaks its query
+// parameters (egress=true).
 
 export interface Note {
   topic: string;
@@ -27,8 +21,8 @@ export class ResearchTool {
 
   constructor(private readonly session: AmcpSession) {}
 
-  // api.request — mutates nothing, but the query egresses. The query is hashed into
-  // params_hash and never stored raw: it is precisely the sensitive part that leaked.
+  // api.request: mutates nothing, but the query egresses. The query is hashed into
+  // params_hash, never stored raw.
   async search(query: string): Promise<SearchHit[]> {
     return this.session.audited(
       {
@@ -41,7 +35,7 @@ export class ResearchTool {
     );
   }
 
-  // db.write — a state change that stays inside the trust boundary.
+  // db.write: a state change inside the trust boundary.
   async saveNote(topic: string, content: string): Promise<Note> {
     return this.session.audited(
       {
@@ -58,7 +52,7 @@ export class ResearchTool {
     );
   }
 
-  // db.read — the genuinely benign case: no state change, no egress.
+  // db.read: no state change, no egress.
   async listNotes(): Promise<Note[]> {
     return this.session.audited(
       {

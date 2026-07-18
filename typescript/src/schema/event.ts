@@ -1,14 +1,13 @@
 import { z } from 'zod/v4';
 import { ACTION_TYPE_RE } from './actionType.js';
 
-// Auditable MCP core audit event — single schema for Level 1 & Level 2 (design §3.1 INV-1).
-// Trust-establishing fields (sequence/key_id/signature) are optional at the schema level
-// so a Level-1 event (no signature) still validates as a Level-2 event: L1 ⊆ L2.
+// Core audit event — one schema for L1 and L2. The trust-establishing fields
+// (sequence/key_id/signature) are optional, so an L1 event validates as an L2 event.
 
 export const SPEC_VERSION = 'auditable-mcp/0.1';
 
-// Tool-internal events emit only attempted/success/failed/aborted.
-// denied/expired are host CallTool-boundary outcomes, not Auditable MCP internal responses (§5).
+// Tool-internal events emit only attempted/success/failed/aborted; denied/expired are
+// host CallTool-boundary outcomes.
 export const OUTCOME = ['attempted', 'success', 'failed', 'aborted'] as const;
 export type Outcome = (typeof OUTCOME)[number];
 
@@ -28,13 +27,13 @@ export const auditEventSchema = z.object({
 
   // --- domain action ---
   action_type: z.string().regex(ACTION_TYPE_RE), // syntax only; core-ness is a soft classification
-  mutates: z.boolean(), // required effect axis (orthogonal to action_type, §4.1 ①)
-  egress: z.boolean(), // required effect axis; unknown fails safe to true (§4.1 ②)
+  mutates: z.boolean(), // required effect axis, orthogonal to action_type
+  egress: z.boolean(), // required effect axis; unknown fails safe to true
   target_resource: targetResourceSchema,
   outcome: z.enum(OUTCOME),
-  params_hash: z.string().regex(/^sha256:[0-9a-f]{64}$/), // hashed, never raw (§4)
+  params_hash: z.string().regex(/^sha256:[0-9a-f]{64}$/), // hashed, never raw
 
-  // --- Level 2 only (optional at schema level to preserve INV-1) ---
+  // --- Level 2 only (optional so an L1 event is a valid L2 event) ---
   sequence: z.number().int().nonnegative().optional(), // per-tool monotonic (gap detection)
   key_id: z.string().optional(),
   signature: z.string().optional(),

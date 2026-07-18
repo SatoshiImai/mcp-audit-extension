@@ -1,14 +1,7 @@
-"""A dummy first-party MCP tool: a research assistant (mirror of the TypeScript tool).
+"""Dummy first-party MCP tool (research assistant).
 
-Each internal domain operation is wrapped in the audit-before-act discipline, so the ledger
-records what the tool actually did inside -- the tool-internal granularity that boundary-level
-audit cannot see.
-
-The three operations deliberately span the (mutates, egress) axis, including the case that
-naive "reads are safe" thinking misses: a web search MUTATES NOTHING yet EGRESSES the query.
-The secret leaves in the keywords ("AcmeCorp merger due diligence" tells the search provider
-you are doing M&A on AcmeCorp) even though nothing comes back changed. That is why egress is
-an axis of its own, and why ``api.request`` is not in the benign-read relaxation.
+Demonstrates tool-internal domain operations across the (mutates, egress) axis.
+Note that web searches are read-only (mutates=False) but leak query parameters (egress=True).
 """
 
 from auditable_mcp.amcp import AmcpSession
@@ -23,7 +16,6 @@ class ResearchTool:
         """Bind the audit session and start with no notes."""
         self._session = session
         self._notes: dict[str, dict] = {}
-        # end def
 
     def search(self, query: str) -> list[dict]:
         """Search the web (api.request).
@@ -39,7 +31,6 @@ class ResearchTool:
             mutates=False,
             egress=True,
         )
-        # end def
 
     def save_note(self, topic: str, content: str) -> dict:
         """Persist a note (db.write) -- a state change that stays inside the trust boundary."""
@@ -48,7 +39,6 @@ class ResearchTool:
             note = {'topic': topic, 'content': content}
             self._notes[topic] = note
             return note
-            # end def
 
         return self._session.audited(
             action_type='db.write',
@@ -58,7 +48,6 @@ class ResearchTool:
             mutates=True,
             egress=False,
         )
-        # end def
 
     def list_notes(self) -> list[dict]:
         """List notes (db.read) -- the genuinely benign case: no state change, no egress."""
@@ -70,6 +59,3 @@ class ResearchTool:
             mutates=False,
             egress=False,
         )
-        # end def
-
-    # end class

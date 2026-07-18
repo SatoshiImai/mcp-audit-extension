@@ -1,9 +1,7 @@
 import { createHash } from 'node:crypto';
 
-// Deterministic canonical JSON serialization for hashing (design audit-integrity §2:
-// "決定的なフィールド順の canonical serialization に対してハッシュ" for verification
-// reproducibility). Keys sorted recursively; no insignificant whitespace. Numbers and
-// strings use JSON.stringify's canonical forms. undefined-valued keys are omitted.
+// Deterministic canonical JSON for hashing: keys sorted recursively, no insignificant
+// whitespace, non-ASCII preserved, undefined-valued keys omitted. Must match the Python port.
 export function canonicalize(value: unknown): string {
   return serialize(value);
 }
@@ -31,7 +29,7 @@ export function sha256Hex(input: string): string {
   return createHash('sha256').update(input, 'utf8').digest('hex');
 }
 
-// params_hash helper — tools hash their (masked) params, never the raw values (§4).
+// params_hash: tools hash their (masked) params, never the raw values.
 export function hashParams(params: unknown): string {
   return `sha256:${sha256Hex(canonicalize(params))}`;
 }

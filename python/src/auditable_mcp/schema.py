@@ -26,4 +26,3 @@ def validate_event(event: object) -> str | None:
     """
     error = next(iter(_event_validator.iter_errors(event)), None)
     return error.message if error is not None else None
-    # end def

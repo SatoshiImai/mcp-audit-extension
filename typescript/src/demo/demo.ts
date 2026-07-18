@@ -47,10 +47,10 @@ async function main(): Promise<void> {
   printReport('verify', host.records(), anchored);
 
   // 2. Tamper: mutate a sealed field. The chain recomputation catches it.
-  console.log('\n[2] Tamper — flip a sealed db.write target row, then re-verify:');
+  console.log('\n[2] Tamper — flip a sealed field, then re-verify:');
   const tampered = await runCleanScenario();
-  const rec = tampered.ledger.unsafeMutableRecords()[1]; // the db.write attempt
-  if (rec) rec.event.target_resource.scope_hint = 'row:id=c_2'; // was c_1 — a forged record
+  const rec = tampered.ledger.unsafeMutableRecords()[1]; // the web-search record
+  if (rec) rec.event.target_resource.ref = 'https://evil.example/exfil'; // forge the target
   printReport('verify', tampered.records(), anchored);
 
   // 3. Loss: drop a sealed record. The sequence gap is detected.
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   dropped.ledger.unsafeMutableRecords().splice(2, 1); // remove one record
   printReport('verify', dropped.records(), anchored);
 
-  // 4. Lie into the camera: a replayed attempt id is rejected and never sealed.
+  // 4. A replayed attempt id is rejected and never sealed.
   console.log('\n[4] Reject — a replayed (forged) attempt id is refused, ledger stays clean:');
   const h4 = new AuditHost('acme#2026-07-15');
   const t4 = new InProcessTransport(h4);
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
   }
 
   line();
-  console.log('Done. Integrity failures above are DELIBERATE demonstrations of detection.');
+  console.log('The integrity failures above are intentional; they show detection working.');
   line();
 }
 

@@ -25,7 +25,7 @@ export type AuditHostClient = Client<Request, Notification, AuditAttemptResult>;
 // The host runs as an MCP client: it handles the tool's audit/attempt requests and
 // audit/outcome notifications by delegating to the AuditHost. This is the monitoring camera.
 function createHostClient(auditHost: AuditHost): AuditHostClient {
-  const client: AuditHostClient = new Client({ name: 'a-mcp-host', version: '0.1.0' }, { capabilities: {} });
+  const client: AuditHostClient = new Client({ name: 'auditable-mcp-host', version: '0.1.0' }, { capabilities: {} });
 
   client.setRequestHandler(AuditAttemptRequestSchema, (req): AuditAttemptResult => auditHost.handleAttempt(req.params));
   client.setNotificationHandler(AuditOutcomeNotificationSchema, (notif) => {
@@ -35,11 +35,11 @@ function createHostClient(auditHost: AuditHost): AuditHostClient {
   return client;
 }
 
-// The tool runs as an MCP server exposing the customer-DB tool. Inside tools/call it uses
+// The tool runs as an MCP server exposing the research tool. Inside tools/call it uses
 // McpTransport, so the unchanged tool logic self-attests its internal ops over the wire.
 function createToolServer(capability: AuditCapability, deps: AmcpDeps): AuditToolServer {
   const server: AuditToolServer = new Server(
-    { name: 'customer-db-tool', version: '0.1.0' },
+    { name: 'research-tool', version: '0.1.0' },
     { capabilities: { tools: {} } },
   );
 
@@ -65,8 +65,8 @@ function createToolServer(capability: AuditCapability, deps: AmcpDeps): AuditToo
       }
       return { content: [{ type: 'text', text: JSON.stringify(result ?? null) }] };
     } catch (err) {
-      // Fail-closed abort (design §6.1, block_disposition default "abort"): surface the
-      // blocked internal action in the CallTool result instead of silently degrading.
+      // Fail-closed abort: surface the blocked internal action in the CallTool result
+      // instead of silently degrading.
       if (err instanceof AmcpBlockedError) {
         return {
           content: [{ type: 'text', text: `blocked: ${err.action_type} on ${err.target_ref} (${err.reason})` }],

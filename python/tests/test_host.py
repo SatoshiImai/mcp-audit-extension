@@ -19,9 +19,7 @@ def _attempt(overrides: dict | None = None) -> dict:
     }
     if overrides:
         event.update(overrides)
-        # end if
     return event
-    # end def
 
 
 def test_accepts_valid_attempt() -> None:
@@ -29,7 +27,6 @@ def test_accepts_valid_attempt() -> None:
     host = AuditHost('t#d')
     assert host.handle_attempt(_attempt()).status == 'accept'
     assert len(host.records()) == 1
-    # end def
 
 
 def test_rejects_schema_invalid_without_sealing() -> None:
@@ -39,7 +36,6 @@ def test_rejects_schema_invalid_without_sealing() -> None:
     assert res.status == 'reject'
     assert len(host.records()) == 0
     assert any(a.kind == 'schema-invalid' for a in host.anomalies())
-    # end def
 
 
 def test_rejects_replayed_attempt() -> None:
@@ -50,7 +46,6 @@ def test_rejects_replayed_attempt() -> None:
     assert res.status == 'reject'
     assert len(host.records()) == 1
     assert any(a.kind == 'attempt-replay' for a in host.anomalies())
-    # end def
 
 
 def test_unavailable_fail_closed() -> None:
@@ -60,4 +55,3 @@ def test_unavailable_fail_closed() -> None:
     res = host.handle_attempt(_attempt())
     assert res.status == 'unavailable'
     assert len(host.records()) == 0
-    # end def

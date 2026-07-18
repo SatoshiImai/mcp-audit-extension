@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   const registry = new KeyRegistry();
   registry.register(key.keyId, key.publicKey);
 
-  // [1] Portable escalation (L1 ⊆ L2): the SAME tool code, now with a signer attached.
+  // [1] Portable escalation: the same tool code plus a signer.
   console.log('\n[1] Signed happy path — same tool code + a signer ⇒ L2 (portable escalation):');
   const host = new AuditHost('acme#2026-07-16', L2_CAP, registry);
   const signer = new Ed25519Signer(key.keyId, key.privateKey);
@@ -71,7 +71,7 @@ async function main(): Promise<void> {
   const v = verifyLedger(host.records(), host.ledger.digest());
   console.log(`  verify: ${v.ok ? '✅ VERIFIED' : '❌ FAILURE'}  (signatures accepted, chain intact)`);
 
-  // [2] Forgery — sign, then tamper a field. The host refuses the lie; the ledger stays clean.
+  // [2] Forgery: sign, then tamper a field. The host rejects it; the ledger stays clean.
   console.log('\n[2] Forgery — a signed record altered after signing is rejected:');
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
     console.log(`  ledger records: ${h.records().length} (lie kept out)`);
   }
 
-  // [3] Unsigned under L2 — needs escalation; refused.
+  // [3] Unsigned under L2: refused.
   console.log('\n[3] Unsigned under L2 — an L1-style event without a signature is refused:');
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     console.log(`  unsigned attempt → ${res.status}${res.status !== 'accept' ? ` (${res.reason})` : ''}`);
   }
 
-  // [4] Suppression via sequence gap — a skipped tool sequence exposes a hidden event.
+  // [4] Sequence gap: a skipped tool sequence exposes a hidden event.
   console.log('\n[4] Sequence gap — a suppressed event leaves a hole the host detects:');
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
@@ -104,14 +104,12 @@ async function main(): Promise<void> {
     console.log(`  emit seq 0 then seq 2 → seq2 ${res.status}; anomalies: ${h.getAnomalies().map((a) => a.kind).join(', ')}`);
   }
 
-  // [5] Suppression by omission — reconciliation vs the boundary catches what signing cannot.
+  // [5] Reconciliation: a boundary-observed egress with no self-report.
   console.log('\n[5] Reconciliation — an egress the boundary saw but the tool never reported:');
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
     const boundary = new BoundaryObserver();
-    // The tool ran a web search — the query egressed and the gateway saw it — but the tool
-    // emitted no matching audit event. Perfect signatures on everything else cannot help:
-    // the lie is the omission.
+    // The gateway saw the search egress, but the tool emitted no matching audit event.
     boundary.observeEgress('call_adv', 'https://api.search.example/v1/search');
     const anomalies = reconcile(h.records(), boundary.forCall('call_adv'), 'call_adv');
     for (const a of anomalies) console.log(`  ❌ ${a.kind}: ${a.destination} (${a.detail})`);
@@ -119,7 +117,7 @@ async function main(): Promise<void> {
 
   line();
   console.log('L2 = evidentiary strength (non-repudiation + completeness), not action control.');
-  console.log('Rejections/flags above are DELIBERATE demonstrations of lie-detection.');
+  console.log('The rejections and flags above are intentional; they show detection working.');
   line();
 }
 

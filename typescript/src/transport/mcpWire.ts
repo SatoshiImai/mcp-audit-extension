@@ -1,13 +1,12 @@
-// The whole project is on zod/v4, so the wire-framing schemas compose directly with the MCP
-// SDK's RequestSchema/NotificationSchema AND reuse the domain source-of-truth (auditEventSchema)
-// as the params payload — one schema, validated at both the wire and host layers.
+// The wire-framing schemas are zod/v4 (matching the MCP SDK) and reuse auditEventSchema as
+// the params payload, so one schema is validated at both the wire and host layers.
 import { z } from 'zod/v4';
 import { RequestSchema, NotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import { auditEventSchema } from '../schema/event.js';
 
-// Auditable MCP wire methods on the MCP protocol. audit/attempt is a server→client REQUEST (the
-// elicitation-shaped, blocking, fail-closed primitive); audit/outcome is a server→client
-// NOTIFICATION (design §6). We reuse the elicitation WIRE FORM, not its HITL semantics.
+// Wire methods. audit/attempt is a server->client request (blocking, fail-closed);
+// audit/outcome is a server->client notification. Reuses the elicitation wire shape, not its
+// human-in-the-loop semantics.
 
 export const AUDIT_ATTEMPT_METHOD = 'audit/attempt';
 export const AUDIT_OUTCOME_METHOD = 'audit/outcome';

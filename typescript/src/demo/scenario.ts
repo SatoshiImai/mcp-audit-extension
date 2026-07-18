@@ -13,7 +13,7 @@ export async function runCleanScenario(partition = 'acme#2026-07-15'): Promise<A
   const session = new AmcpSession(transport, 'call_abc', deterministicDeps());
   const tool = new ResearchTool(session);
 
-  await tool.search('acme corp merger due diligence'); // api.request — mutates=0, egress=1
+  await tool.search('acme corp merger due diligence'); // api.request: mutates=0, egress=1
   await tool.saveNote('acme', 'merger rumour confirmed by two sources'); // db.write
   await tool.listNotes(); // db.read
 
