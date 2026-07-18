@@ -1,4 +1,8 @@
-# Auditable MCP Level 1 PoC
+# Auditable MCP — TypeScript reference implementation
+
+> A conformance demonstration of the [Auditable MCP specification](../spec/auditable-mcp.md).
+> It validates against the shared [`spec/`](../spec) contract. It is **not** a product or a
+> library to build on.
 
 Reference implementation for **Auditable MCP**: a tool server self-attests its
 **internal** domain operations (DB reads/writes, downstream API calls) as first-class

@@ -1,4 +1,8 @@
-# Auditable MCP Python reference implementation
+# Auditable MCP — Python reference implementation
+
+> A conformance demonstration of the [Auditable MCP specification](../spec/auditable-mcp.md).
+> It validates against the shared [`spec/`](../spec) contract. It is **not** a product or a
+> library to build on.
 
 A mirror of the [TypeScript reference](../typescript). Both implementations validate against
 the **same** language-neutral JSON Schema (`../spec/schema/`) and conformance vectors
