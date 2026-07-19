@@ -11,7 +11,7 @@ import type { AuditHost } from '../host/auditHost.js';
 import type { AuditCapability } from '../schema/capability.js';
 import { DEFAULT_L1_CAPABILITY } from '../schema/capability.js';
 import { AmcpSession, AmcpBlockedError, deterministicDeps, type AmcpDeps } from '../tool/amcp.js';
-import { ResearchTool } from '../tool/researchTool.js';
+import { SqlAnalystTool } from '../tool/sqlAnalystTool.js';
 import { McpTransport, type AuditToolServer } from '../transport/mcpTransport.js';
 import {
   AuditAttemptRequestSchema,
@@ -23,7 +23,8 @@ import {
 export type AuditHostClient = Client<Request, Notification, AuditAttemptResult>;
 
 // The host runs as an MCP client: it handles the tool's audit/attempt requests and
-// audit/outcome notifications by delegating to the AuditHost. This is the monitoring camera.
+// audit/outcome notifications by delegating to the AuditHost. It records and verifies; it never
+// authorizes the domain action.
 function createHostClient(auditHost: AuditHost): AuditHostClient {
   const client: AuditHostClient = new Client({ name: 'auditable-mcp-host', version: '0.1.0' }, { capabilities: {} });
 
@@ -35,7 +36,7 @@ function createHostClient(auditHost: AuditHost): AuditHostClient {
   return client;
 }
 
-// The tool runs as an MCP server exposing the research tool. Inside tools/call it uses
+// The tool runs as an MCP server exposing the SQL analyst tool. Inside tools/call it uses
 // McpTransport, so the unchanged tool logic self-attests its internal ops over the wire.
 function createToolServer(capability: AuditCapability, deps: AmcpDeps): AuditToolServer {
   const server: AuditToolServer = new Server(
@@ -45,20 +46,14 @@ function createToolServer(capability: AuditCapability, deps: AmcpDeps): AuditToo
 
   server.setRequestHandler(CallToolRequestSchema, async (req, extra): Promise<CallToolResult> => {
     const session = new AmcpSession(new McpTransport(server, capability), String(extra.requestId), deps);
-    const tool = new ResearchTool(session);
+    const tool = new SqlAnalystTool(session);
     const args = (req.params.arguments ?? {}) as Record<string, string>;
 
     try {
       let result: unknown;
       switch (req.params.name) {
-        case 'search':
-          result = await tool.search(args.query ?? '');
-          break;
-        case 'save_note':
-          result = await tool.saveNote(args.topic ?? '', args.content ?? '');
-          break;
-        case 'list_notes':
-          result = await tool.listNotes();
+        case 'analyze':
+          result = await tool.analyze(args.question ?? '');
           break;
         default:
           return { content: [{ type: 'text', text: `unknown tool: ${req.params.name}` }], isError: true };

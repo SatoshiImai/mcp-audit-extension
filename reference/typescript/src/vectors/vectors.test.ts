@@ -43,7 +43,7 @@ describe('conformance vectors — events', () => {
 
 describe('conformance vectors — sealed chain', () => {
   const chain = load<{
-    records: Array<{ event: AuditEvent; seq: number; host_ts: string; prev_hash: string; record_hash: string }>;
+    records: Array<{ event: AuditEvent; seq: number; host_ts: string; previous_hash: string; record_hash: string }>;
     digest: string;
   }>('chain.json');
 
@@ -51,7 +51,7 @@ describe('conformance vectors — sealed chain', () => {
     let prev = GENESIS_HASH;
     chain.records.forEach((r, i) => {
       expect(r.seq).toBe(i);
-      expect(r.prev_hash).toBe(prev);
+      expect(r.previous_hash).toBe(prev);
       const recomputed = computeRecordHash(r.event, r.seq, r.host_ts, prev);
       expect(recomputed).toBe(r.record_hash);
       prev = recomputed;

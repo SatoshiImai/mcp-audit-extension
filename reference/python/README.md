@@ -22,8 +22,8 @@ digest as the TypeScript demo for the same deterministic scenario.
 
 ## What it proves
 
-- `python -m auditable_mcp.demo.demo` (L1): clean run VERIFIED (a web search shows `mut=0 egr=1`
-  — read-only, yet the query egresses); tamper → `record-hash-mismatch` +
+- `python -m auditable_mcp.demo.demo` (L1): clean run VERIFIED (a `db.query` shows `mut=0 egr=1`
+  — read-only, yet the query egresses to the DB); tamper → `record-hash-mismatch` +
   `digest-mismatch`; loss → `seq-gap`; replayed id → `reject`; unavailable → fail-closed.
 - `python -m auditable_mcp.demo.l2_demo` (L2): portable escalation (same tool + a signer); forgery →
   `signature-invalid`; unsigned → `l2-unsigned`; suppressed event → `sequence-gap`; suppressed
@@ -37,14 +37,13 @@ tool's domain action; the only thing it blocks is a **lie into the ledger**.
 | Path | Role |
 |------|------|
 | `src/auditable_mcp/canonical.py` | deterministic canonical JSON + hashing |
-| `src/auditable_mcp/action_type.py` | Core Enum + ext.* classify, effect fail-safe |
 | `src/auditable_mcp/schema.py` | validation against the shared JSON Schema (`jsonschema`) |
 | `src/auditable_mcp/ledger.py` | sequence + hash chain (sealed records) |
 | `src/auditable_mcp/transport.py` | wire-shaped `AuditTransport` protocol |
 | `src/auditable_mcp/in_process.py` | in-process transport |
 | `src/auditable_mcp/host.py` | audit subsystem: L1 accept/reject/unavailable + L2 verify/sequence |
 | `src/auditable_mcp/amcp.py` | audit-before-act session (± signer) |
-| `src/auditable_mcp/research_tool.py` | dummy first-party research tool (search / notes) |
+| `src/auditable_mcp/sql_analyst_tool.py` | dummy first-party SQL analyst tool (NL question → internal SQL) |
 | `src/auditable_mcp/l2/` | Ed25519 signing, key registry, reconciliation |
 | `src/auditable_mcp/verify.py` | chain recompute, gap + tamper detection |
 | `src/auditable_mcp/demo/` | L1 and L2 walkthroughs |

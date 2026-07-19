@@ -52,9 +52,11 @@ def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = Non
             kind = 'seq-gap' if rec.seq > i else 'seq-out-of-order'
             issues.append(VerifyIssue(seq=rec.seq, kind=kind, detail=f'expected seq {i}, got {rec.seq}'))
         recomputed = compute_record_hash(rec.event, rec.seq, rec.host_ts, prev_recomputed)
-        if rec.prev_hash != prev_recomputed:
+        if rec.previous_hash != prev_recomputed:
             issues.append(
-                VerifyIssue(seq=rec.seq, kind='prev-hash-mismatch', detail='prev_hash does not link to previous record')
+                VerifyIssue(
+                    seq=rec.seq, kind='prev-hash-mismatch', detail='previous_hash does not link to previous record'
+                )
             )
         if rec.record_hash != recomputed:
             issues.append(

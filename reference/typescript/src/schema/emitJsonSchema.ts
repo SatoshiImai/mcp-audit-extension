@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { z } from 'zod/v4';
 import { auditEventSchema } from './event.js';
 import { auditCapabilitySchema } from './capability.js';
+import { AuditAttemptResultSchema } from '../transport/mcpWire.js';
 import { SPEC_SCHEMA_DIR } from '../paths.js';
 
 // Materialize JSON Schema from the Zod SoT using zod/v4's native z.toJSONSchema (Zod is the
@@ -15,6 +16,7 @@ function main(): void {
   const targets: Array<[string, unknown]> = [
     ['audit-event.schema.json', z.toJSONSchema(auditEventSchema)],
     ['audit-capability.schema.json', z.toJSONSchema(auditCapabilitySchema)],
+    ['audit-attempt-response.schema.json', z.toJSONSchema(AuditAttemptResultSchema)],
   ];
 
   for (const [file, schema] of targets) {

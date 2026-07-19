@@ -14,7 +14,7 @@ function baseEvent(): AuditEvent {
     egress: false,
     target_resource: { kind: 'table', ref: 'customers' },
     outcome: 'attempted',
-    params_hash: `sha256:${'0'.repeat(64)}`,
+    action_context_hash: `sha256:${'0'.repeat(64)}`,
   };
 }
 

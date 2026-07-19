@@ -1,6 +1,6 @@
 """L2 walkthrough: signature (non-repudiation) + sequence + reconciliation.
 
-Blocking is on LIES into the ledger, never on the tool's domain action.
+Blocking targets lies into the ledger, never the tool's domain action.
 Run: ``PYTHONPATH=src python -m auditable_mcp.demo.l2_demo``.
 """
 
@@ -14,7 +14,7 @@ from auditable_mcp.l2.keys import KeyRegistry, ToolKey, generate_tool_key
 from auditable_mcp.l2.reconcile import BoundaryObserver, reconcile
 from auditable_mcp.l2.signing import Ed25519Signer, sign_event
 from auditable_mcp.ledger import SealedRecord
-from auditable_mcp.research_tool import ResearchTool
+from auditable_mcp.sql_analyst_tool import SqlAnalystTool
 from auditable_mcp.verify import verify_ledger
 
 logger = logging.getLogger('auditable_mcp.demo')
@@ -46,7 +46,7 @@ def _attempt_for(key: ToolKey, seq: int, ref: str) -> dict:
         'egress': False,
         'target_resource': {'kind': 'table', 'ref': ref},
         'outcome': 'attempted',
-        'params_hash': _ZERO_HASH,
+        'action_context_hash': _ZERO_HASH,
     }
     return sign_event(base, key.key_id, seq, key.private_key)
 
@@ -56,21 +56,20 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     logger.info(_RULE)
     logger.info('Auditable MCP L2 PoC (Python) — signature (non-repudiation) + sequence + reconciliation')
-    logger.info("Blocking is on LIES into the ledger, never on the tool's domain action.")
+    logger.info("Blocking targets lies into the ledger, never the tool's domain action.")
     logger.info(_RULE)
 
     # Onboarding: register the tool's public key out-of-band.
-    key = generate_tool_key('research-tool-key')
+    key = generate_tool_key('sql-analyst-key')
     registry = KeyRegistry()
     registry.register(key.key_id, key.public_key)
 
-    logger.info('\n[1] Signed happy path — same tool code + a signer => L2 (portable escalation):')
+    logger.info('\n[1] Signed path — same tool code + a signer => L2 (portable escalation):')
     host = AuditHost('acme#2026-07-16', L2_CAP, registry)
     signer = Ed25519Signer(key.key_id, key.private_key)
     session = AmcpSession(InProcessTransport(host), 'call_abc', DeterministicDeps(), signer)
-    tool = ResearchTool(session)
-    tool.search('acme corp merger due diligence')
-    tool.save_note('acme', 'merger rumour confirmed by two sources')
+    tool = SqlAnalystTool(session)
+    tool.analyze('What were the high-value customer trends in the Tokyo area last month?')
     _print_ledger(host.records())
     report = verify_ledger(host.records(), host.ledger.digest())
     verdict = '✅ VERIFIED' if report.ok else '❌ FAILURE'
@@ -95,7 +94,7 @@ def main() -> None:
         'egress': False,
         'target_resource': {'kind': 'table', 'ref': 'notes'},
         'outcome': 'attempted',
-        'params_hash': _ZERO_HASH,
+        'action_context_hash': _ZERO_HASH,
     }
     res = h3.handle_attempt(unsigned)
     logger.info(f'  unsigned attempt → {res.status} ({res.reason})')
@@ -110,8 +109,8 @@ def main() -> None:
     logger.info('\n[5] Reconciliation — an egress the boundary saw but the tool never reported:')
     h5 = AuditHost('acme#adv', L2_CAP, registry)
     boundary = BoundaryObserver()
-    # The gateway saw the search egress, but the tool emitted no matching audit event.
-    boundary.observe_egress('call_adv', 'https://api.search.example/v1/search')
+    # The gateway saw an egress, but the tool emitted no matching audit event.
+    boundary.observe_egress('call_adv', 'https://external-llm.example/v1/chat')
     for anomaly in reconcile(h5.records(), boundary.for_call('call_adv'), 'call_adv'):
         logger.info(f'  ❌ {anomaly.kind}: {anomaly.destination} ({anomaly.detail})')
 

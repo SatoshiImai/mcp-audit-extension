@@ -1,5 +1,4 @@
 import { z } from 'zod/v4';
-import { ACTION_TYPE_RE } from './actionType.js';
 
 // Core audit event — one schema for L1 and L2. The trust-establishing fields
 // (sequence/key_id/signature) are optional, so an L1 event validates as an L2 event.
@@ -26,12 +25,25 @@ export const auditEventSchema = z.object({
   traceparent: z.string().optional(), // W3C Trace Context
 
   // --- domain action ---
-  action_type: z.string().regex(ACTION_TYPE_RE), // syntax only; core-ness is a soft classification
+  // action_type is an opaque, non-empty identifier; its vocabulary is out of scope (§4.1).
+  action_type: z.string().min(1),
   mutates: z.boolean(), // required effect axis, orthogonal to action_type
-  egress: z.boolean(), // required effect axis; unknown fails safe to true
+  egress: z.boolean(), // required effect axis
   target_resource: targetResourceSchema,
   outcome: z.enum(OUTCOME),
-  params_hash: z.string().regex(/^sha256:[0-9a-f]{64}$/), // hashed, never raw
+  // Optional free-form context for a failed/aborted outcome (e.g. "hash-mismatch",
+  // "host-rejected", "host-unavailable"). Not an enum; domain-specific reasons are allowed.
+  reason: z.string().optional(),
+
+  // --- audit context (confidentiality is the tool's choice; §4.3) ---
+  // action_context: cleartext metadata about the internal operation, redacted at the tool's
+  // discretion. action_context_hash: a commitment to the exact internal context. Independent
+  // and both optional; a host must not require them to correspond.
+  action_context: z.record(z.string(), z.unknown()).optional(),
+  action_context_hash: z
+    .string()
+    .regex(/^sha256:[0-9a-f]{64}$/)
+    .optional(),
 
   // --- Level 2 only (optional so an L1 event is a valid L2 event) ---
   sequence: z.number().int().nonnegative().optional(), // per-tool monotonic (gap detection)

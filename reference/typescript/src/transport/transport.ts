@@ -1,15 +1,15 @@
 import type { AuditEvent } from '../schema/event.js';
-import type { AuditCapability } from '../schema/capability.js';
+import type { AuditCapability, NegotiationResult } from '../schema/capability.js';
 
-// AuditTransport is shaped to the MCP elicitation wire: a server->client request/response
-// for attempt, a lighter outcome delivery, plus capability negotiation. Keeping it faithful
-// lets an MCP-SDK-backed transport drop in without changing anything above this interface.
+// Transport shaped to the MCP elicitation wire: server->client request/response for attempt,
+// notification for outcome, plus capability negotiation. An MCP-SDK-backed transport drops in
+// without changes above this interface.
 
-// Response to audit/attempt. accept = record durably persisted (proceed). reject = invalid
-// or forged record (do not proceed). unavailable = transient persistence failure (do not
-// proceed). None authorize the domain action; fail-closed is about record completeness.
+// audit/attempt response. accept = record durably persisted; proceed. reject = invalid/forged
+// record; do not proceed. unavailable = transient persistence failure; do not proceed. None
+// authorize the domain action: fail-closed governs record completeness, not authorization.
 export type AttemptResponse =
-  | { status: 'accept'; seq: number; record_hash: string }
+  | { status: 'accept'; seq: number; record_hash: string; host_ts: string; previous_hash: string }
   | { status: 'reject'; reason: string }
   | { status: 'unavailable'; reason: string; retryable: true };
 
@@ -21,12 +21,12 @@ export class AuditCancelledError extends Error {
 }
 
 export interface AuditTransport {
-  // Host declares what it requires; the tool complies or fails observably.
-  negotiate(): AuditCapability;
+  // Bidirectional capability exchange (§6.1). Mismatch handling is an orchestrator concern.
+  negotiate(offered: AuditCapability): NegotiationResult;
 
-  // Blocking request/response. Throws AuditCancelledError when the context is torn down.
+  // Blocking request/response. Throws AuditCancelledError on context teardown.
   sendAttempt(event: AuditEvent): Promise<AttemptResponse>;
 
-  // Outcome (success/failed). Not a completeness gate; loss is caught by sequence gaps.
+  // Outcome delivery. Not a completeness gate; loss is caught by sequence gaps (§7.1).
   sendOutcome(event: AuditEvent): Promise<void>;
 }

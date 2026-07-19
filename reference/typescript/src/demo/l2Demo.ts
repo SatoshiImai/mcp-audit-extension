@@ -1,11 +1,11 @@
 import { AuditHost } from '../host/auditHost.js';
 import { InProcessTransport } from '../transport/inProcess.js';
 import { AmcpSession, deterministicDeps } from '../tool/amcp.js';
-import { ResearchTool } from '../tool/researchTool.js';
 import { verifyLedger } from '../verify/verify.js';
 import { generateToolKey, KeyRegistry, type ToolKey } from '../l2/keys.js';
 import { Ed25519Signer, signEvent } from '../l2/signing.js';
 import { BoundaryObserver, reconcile } from '../l2/reconcile.js';
+import { SqlAnalystTool } from '../tool/sqlAnalystTool.js';
 import type { AuditEvent } from '../schema/event.js';
 import type { SealedRecord } from '../ledger/ledger.js';
 
@@ -43,7 +43,7 @@ function attemptFor(key: ToolKey, seq: number, ref: string): AuditEvent {
     egress: false,
     target_resource: { kind: 'table', ref },
     outcome: 'attempted',
-    params_hash: `sha256:${'0'.repeat(64)}`,
+    action_context_hash: `sha256:${'0'.repeat(64)}`,
   };
   return signEvent(base, key.keyId, seq, key.privateKey);
 }
@@ -51,22 +51,21 @@ function attemptFor(key: ToolKey, seq: number, ref: string): AuditEvent {
 async function main(): Promise<void> {
   line();
   console.log('Auditable MCP L2 PoC — signature (non-repudiation) + sequence + reconciliation');
-  console.log('Blocking is on LIES into the ledger, never on the tool\'s domain action.');
+  console.log('Blocking targets lies into the ledger, never the tool\'s domain action.');
   line();
 
   // Onboarding: the host registers the tool's public key out-of-band (the trust anchor).
-  const key = generateToolKey('research-tool-key');
+  const key = generateToolKey('sql-analyst-key');
   const registry = new KeyRegistry();
   registry.register(key.keyId, key.publicKey);
 
   // [1] Portable escalation: the same tool code plus a signer.
-  console.log('\n[1] Signed happy path — same tool code + a signer ⇒ L2 (portable escalation):');
+  console.log('\n[1] Signed path — same tool code + a signer ⇒ L2 (portable escalation):');
   const host = new AuditHost('acme#2026-07-16', L2_CAP, registry);
   const signer = new Ed25519Signer(key.keyId, key.privateKey);
   const session = new AmcpSession(new InProcessTransport(host), 'call_abc', deterministicDeps(), signer);
-  const tool = new ResearchTool(session);
-  await tool.search('acme corp merger due diligence');
-  await tool.saveNote('acme', 'merger rumour confirmed by two sources');
+  const tool = new SqlAnalystTool(session);
+  await tool.analyze('What were the high-value customer trends in the Tokyo area last month?');
   printLedger(host.records());
   const v = verifyLedger(host.records(), host.ledger.digest());
   console.log(`  verify: ${v.ok ? '✅ VERIFIED' : '❌ FAILURE'}  (signatures accepted, chain intact)`);
@@ -89,7 +88,7 @@ async function main(): Promise<void> {
     const unsigned: AuditEvent = {
       id: '00000000-0000-4000-8000-0000000000aa', spec_version: 'auditable-mcp/0.1', ts: '2026-07-16T00:00:00.000Z',
       call_id: 'call_adv', action_type: 'db.write', mutates: true, egress: false,
-      target_resource: { kind: 'table', ref: 'notes' }, outcome: 'attempted', params_hash: `sha256:${'0'.repeat(64)}`,
+      target_resource: { kind: 'table', ref: 'notes' }, outcome: 'attempted', action_context_hash: `sha256:${'0'.repeat(64)}`,
     };
     const res = h.handleAttempt(unsigned);
     console.log(`  unsigned attempt → ${res.status}${res.status !== 'accept' ? ` (${res.reason})` : ''}`);
@@ -109,8 +108,8 @@ async function main(): Promise<void> {
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
     const boundary = new BoundaryObserver();
-    // The gateway saw the search egress, but the tool emitted no matching audit event.
-    boundary.observeEgress('call_adv', 'https://api.search.example/v1/search');
+    // The gateway saw an egress, but the tool emitted no matching audit event.
+    boundary.observeEgress('call_adv', 'https://external-llm.example/v1/chat');
     const anomalies = reconcile(h.records(), boundary.forCall('call_adv'), 'call_adv');
     for (const a of anomalies) console.log(`  ❌ ${a.kind}: ${a.destination} (${a.detail})`);
   }

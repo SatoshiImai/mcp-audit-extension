@@ -1,12 +1,17 @@
 import { SPEC_VERSION, type AuditEvent } from '../schema/event.js';
-import { resolveEffect, type Effect } from '../schema/actionType.js';
-import { hashParams } from '../ledger/canonical.js';
+import { hashCanonical } from '../ledger/canonical.js';
+import { computeRecordHash } from '../ledger/ledger.js';
 import type { AttemptResponse, AuditTransport } from '../transport/transport.js';
 import type { EventSigner } from '../l2/signing.js';
 
-// Tool-side library. Implements audit-before-act: emit `attempt`, await a durable accept,
-// then perform the internal domain action, then emit the outcome. If the record is rejected
-// or unavailable, the action is not performed.
+// Tool-side audit-before-act (§6): emit attempt, await durable accept, perform the domain
+// action, emit outcome. reject or unavailable => action not performed.
+
+// Effect axis (§4.2). Both flags declared per operation; action_type is opaque, so no inference.
+export interface Effect {
+  mutates: boolean;
+  egress: boolean;
+}
 
 export class AmcpBlockedError extends Error {
   constructor(
@@ -14,7 +19,7 @@ export class AmcpBlockedError extends Error {
     readonly target_ref: string,
     readonly reason: string,
   ) {
-    super(`a-mcp blocked ${action_type} on ${target_ref}: ${reason}`);
+    super(`auditable-mcp blocked ${action_type} on ${target_ref}: ${reason}`);
     this.name = 'AmcpBlockedError';
   }
 }
@@ -22,8 +27,10 @@ export class AmcpBlockedError extends Error {
 export interface ActionSpec {
   action_type: string;
   target_resource: AuditEvent['target_resource'];
-  params: unknown; // hashed, never stored raw
-  effect?: Partial<Effect>; // self-declared; resolved with fail-safe floor
+  effect: Effect;
+  // Confidentiality is the tool's choice (§4.3): disclose cleartext, seal a hash, both, or neither.
+  disclose?: Record<string, unknown>; // -> event.action_context
+  commit?: unknown; // -> event.action_context_hash = sha256(canonical(commit))
 }
 
 export interface AmcpDeps {
@@ -36,7 +43,7 @@ export class AmcpSession {
     private readonly transport: AuditTransport,
     private readonly callId: string,
     private readonly deps: AmcpDeps,
-    // Optional signer. Its presence is the only difference between L1 and L2 emission.
+    // Signer presence is the only L1/L2 emission difference (§5).
     private readonly signer?: EventSigner,
   ) {}
 
@@ -44,26 +51,38 @@ export class AmcpSession {
     return this.signer ? this.signer.sign(event) : event;
   }
 
-  // Wrap one internal domain operation in the audit-before-act discipline.
+  // Wrap one domain operation in audit-before-act (§6).
   async audited<T>(spec: ActionSpec, perform: () => Promise<T>): Promise<T> {
-    const effect = resolveEffect(spec.action_type, spec.effect);
     const base = {
       id: this.deps.newId(),
       spec_version: SPEC_VERSION,
       ts: this.deps.now(),
       call_id: this.callId,
       action_type: spec.action_type,
-      mutates: effect.mutates,
-      egress: effect.egress,
+      mutates: spec.effect.mutates,
+      egress: spec.effect.egress,
       target_resource: spec.target_resource,
-      params_hash: hashParams(spec.params),
+      ...(spec.disclose !== undefined ? { action_context: spec.disclose } : {}),
+      ...(spec.commit !== undefined ? { action_context_hash: hashCanonical(spec.commit) } : {}),
     } as const;
 
     const attempt = this.stamp({ ...base, outcome: 'attempted' });
     const resp: AttemptResponse = await this.transport.sendAttempt(attempt);
     if (resp.status !== 'accept') {
-      // No valid record: do not perform the action.
-      throw new AmcpBlockedError(spec.action_type, spec.target_resource.ref, resp.reason);
+      // reject (invalid/forged) or unavailable (not persisted): do not act; signal aborted (§11.3).
+      const reason = resp.status === 'reject' ? 'host-rejected' : 'host-unavailable';
+      await this.transport.sendOutcome(this.stamp({ ...base, outcome: 'aborted', reason }));
+      throw new AmcpBlockedError(spec.action_type, spec.target_resource.ref, reason);
+    }
+
+    // Polluted Stop (§7.2): MUST under L2 (signer present), OPTIONAL under L1. Recompute
+    // record_hash over the attempt bytes; mismatch means the host sealed a different record.
+    if (this.signer) {
+      const expected = computeRecordHash(attempt, resp.seq, resp.host_ts, resp.previous_hash);
+      if (expected !== resp.record_hash) {
+        await this.transport.sendOutcome(this.stamp({ ...base, outcome: 'aborted', reason: 'hash-mismatch' }));
+        throw new AmcpBlockedError(spec.action_type, spec.target_resource.ref, 'hash-mismatch');
+      }
     }
 
     try {
@@ -77,18 +96,18 @@ export class AmcpSession {
   }
 }
 
-// Deterministic deps for reproducible test vectors (no wall clock / random uuid).
-export function deterministicDeps(prefix = 'ev'): AmcpDeps {
+// Deterministic deps for reproducible test vectors: no wall clock, no random uuid.
+export function deterministicDeps(): AmcpDeps {
   let n = 0;
   return {
     newId: () => {
       n += 1;
-      // uuid-shaped deterministic id so it satisfies the schema's uuid() check.
+      // uuid-shaped id to satisfy the schema uuid() check.
       const h = n.toString(16).padStart(12, '0');
       return `00000000-0000-4000-8000-${h}`;
     },
     now: () => {
-      // Fixed base + counter keeps ts stable across runs.
+      // Fixed base + counter; stable ts across runs.
       const secs = 1000 + n;
       return new Date(secs * 1000).toISOString();
     },

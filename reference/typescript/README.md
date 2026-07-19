@@ -17,10 +17,11 @@ the infrastructure.
 
 Run `npm run demo`:
 
-1. **Clean run** — a first-party research tool self-attests each internal op; the ledger
-   `✅ VERIFIED (non-tampered + complete)` and matches the anchored digest. The three ops span
-   the effect axis, including the case naive "reads are safe" thinking misses: a web search
-   (`api.request`) shows `mut=0 egr=1` — it mutates nothing, yet the **query egresses**.
+1. **Clean run** — a first-party SQL analyst tool self-attests each internal op; the ledger
+   `✅ VERIFIED (non-tampered + complete)` and matches the anchored digest. The ops span the
+   effect axis, including the case naive "reads are safe" thinking misses: a `db.query` shows
+   `mut=0 egr=1` — it mutates nothing, yet the **query egresses** to the database. The tables
+   touched are disclosed in cleartext, while the exact SQL is sealed as an `action_context_hash`.
 2. **Tamper** — flip one sealed field → recompute breaks the chain → `record-hash-mismatch` + `digest-mismatch`.
 3. **Loss** — drop one sealed record → `seq-gap` + `digest-mismatch` (completeness).
 4. **Reject** — a replayed (forged) attempt id is refused; the ledger stays clean (a lie is blocked from the camera, not the tool's action).
@@ -63,7 +64,7 @@ request/response during tool execution).
   sends `audit/attempt` (server→client request) and `audit/outcome` (notification) to the
   host running as an MCP client, connected via `InMemoryTransport`. See `src/mcp/`.
 
-The swap is a drop-in: the tool (`AmcpSession`, `ResearchTool`), host (`AuditHost`),
+The swap is a drop-in: the tool (`AmcpSession`, `SqlAnalystTool`), host (`AuditHost`),
 ledger, and verifier are **byte-identical** across B1 and B2 — only the transport differs
 (`src/mcp/mcp.test.ts` proves the same seal + verify over the wire, including fail-closed).
 `audit/attempt` reuses the elicitation *wire form* (a server-initiated request during
@@ -73,11 +74,11 @@ ledger, and verifier are **byte-identical** across B1 and B2 — only the transp
 
 | Path | Role |
 |------|------|
-| `src/schema/` | Zod SoT: core event, capability, `action_type` classify (`npm run schema:json` emits JSON Schema) |
+| `src/schema/` | Zod SoT: core event + capability (`npm run schema:json` emits JSON Schema) |
 | `src/ledger/` | canonical JSON + Tier1/Tier2 sealer (sequence + hash chain) |
 | `src/transport/` | wire-shaped `AuditTransport` + `InProcessTransport` (B1) + `McpTransport` (B2) |
 | `src/host/` | audit subsystem: `accept` / `reject` / `unavailable` |
-| `src/tool/` | audit-before-act library + dummy first-party research tool (search / notes) |
+| `src/tool/` | audit-before-act library + dummy first-party SQL analyst tool (NL question → internal SQL) |
 | `src/l2/` | signing (Ed25519), key registry, reconciliation (Level 2) |
 | `src/mcp/` | MCP SDK wiring (tool server + host client over `InMemoryTransport`) |
 | `src/verify/` | chain recompute, gap + tamper detection (`npm run verify`) |
@@ -92,7 +93,7 @@ these vectors are the language-neutral contract both reference implementations v
 
 - `canonicalization.json` — canonical serialization of primitives (key order, nesting, unicode, scalars).
 - `events.json` — canonical bytes + sha256 for representative events (L1 minimal → L2 signed).
-- `chain.json` — a full sealed chain (sequence + prev_hash + record_hash + anchored digest).
+- `chain.json` — a full sealed chain (sequence + previous_hash + record_hash + anchored digest).
 
 `vectors.test.ts` recomputes from the stored inputs and asserts equality, so the wire
 contract cannot drift silently: change canonicalization/hashing → regenerate or the fence fails.

@@ -11,12 +11,11 @@ from auditable_mcp.demo.scenario import run_clean_scenario
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.ledger import SealedRecord
-from auditable_mcp.research_tool import ResearchTool
+from auditable_mcp.sql_analyst_tool import SqlAnalystTool
 from auditable_mcp.verify import verify_ledger
 
 logger = logging.getLogger('auditable_mcp.demo')
 _RULE = '─' * 72
-_ZERO_HASH = f'sha256:{"0" * 64}'
 
 
 def _print_ledger(records: list[SealedRecord]) -> None:
@@ -50,14 +49,14 @@ def main() -> None:
     anchored = host.ledger.digest()
     logger.info('\n[1] Clean run — sealed ledger:')
     _print_ledger(host.records())
-    logger.info('      ↑ note api.request: mut=0 egr=1 — a read-only web search still EGRESSES')
-    logger.info('        the query. Nothing changed; the secret left in the keywords.')
+    logger.info('      db.query: mut=0 egr=1 — a read-only SELECT still egresses to the DB.')
+    logger.info('      Tables touched are disclosed; the exact SQL is sealed, not logged raw.')
     logger.info('')
     _report('verify', host.records(), anchored)
 
     logger.info('\n[2] Tamper — flip a sealed field, then re-verify:')
     tampered = run_clean_scenario()
-    tampered.records()[1].event['target_resource']['scope_hint'] = 'row:id=c_2'
+    tampered.records()[1].event['target_resource']['ref'] = 'evil-db'
     _report('verify', tampered.records(), anchored)
 
     logger.info('\n[3] Loss — drop a sealed record, then re-verify:')
@@ -68,8 +67,8 @@ def main() -> None:
 
     logger.info('\n[4] Reject — a replayed attempt id is refused, ledger stays clean:')
     h4 = AuditHost('acme#2026-07-16')
-    tool4 = ResearchTool(AmcpSession(InProcessTransport(h4), 'call_abc', DeterministicDeps()))
-    tool4.search('acme corp merger due diligence')
+    tool4 = SqlAnalystTool(AmcpSession(InProcessTransport(h4), 'call_abc', DeterministicDeps()))
+    tool4.analyze('What were the high-value customer trends in the Tokyo area last month?')
     replay = {
         'id': '00000000-0000-4000-8000-000000000001',
         'spec_version': 'auditable-mcp/0.1',
@@ -78,9 +77,8 @@ def main() -> None:
         'action_type': 'db.write',
         'mutates': True,
         'egress': False,
-        'target_resource': {'kind': 'table', 'ref': 'notes', 'scope_hint': 'topic=acme'},
+        'target_resource': {'kind': 'table', 'ref': 'analysis_results'},
         'outcome': 'attempted',
-        'params_hash': _ZERO_HASH,
     }
     res = h4.handle_attempt(replay)
     logger.info(f'  replay attempt → {res.status} ({res.reason})')
@@ -89,9 +87,9 @@ def main() -> None:
     logger.info('\n[5] Fail-closed — Tier1 unavailable, the internal action is not performed:')
     h5 = AuditHost('acme#2026-07-16')
     h5.unavailable = True
-    tool5 = ResearchTool(AmcpSession(InProcessTransport(h5), 'call_abc', DeterministicDeps()))
+    tool5 = SqlAnalystTool(AmcpSession(InProcessTransport(h5), 'call_abc', DeterministicDeps()))
     try:
-        tool5.save_note('acme', 'this write must never happen')
+        tool5.analyze('What were the high-value customer trends in the Tokyo area last month?')
         logger.info('  ❌ action proceeded despite no durable record (BUG)')
     except AmcpBlockedError as err:
         logger.info(f'  ✅ blocked: {err.action_type} on {err.target_ref} ({err.reason}) — no record, no action')

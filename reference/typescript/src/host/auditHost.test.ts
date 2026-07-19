@@ -13,7 +13,7 @@ function attempt(overrides: Partial<AuditEvent> = {}): AuditEvent {
     egress: false,
     target_resource: { kind: 'table', ref: 'customers', scope_hint: 'row:id=c_1' },
     outcome: 'attempted',
-    params_hash: `sha256:${'0'.repeat(64)}`,
+    action_context_hash: `sha256:${'0'.repeat(64)}`,
     ...overrides,
   };
 }
@@ -28,7 +28,7 @@ describe('AuditHost — accept / reject / unavailable', () => {
 
   it('rejects a schema-invalid record (a lie into the ledger) without sealing it', () => {
     const host = new AuditHost('t#d');
-    const res = host.handleAttempt({ ...attempt(), params_hash: 'not-a-hash' });
+    const res = host.handleAttempt({ ...attempt(), action_context_hash: 'not-a-hash' });
     expect(res.status).toBe('reject');
     expect(host.records()).toHaveLength(0);
     expect(host.getAnomalies().some((a) => a.kind === 'schema-invalid')).toBe(true);

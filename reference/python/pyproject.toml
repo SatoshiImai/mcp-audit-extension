@@ -3,7 +3,11 @@ name = "auditable-mcp"
 version = "0.1.0"
 description = "Auditable MCP Python reference implementation (mirror of the TypeScript reference)"
 requires-python = ">=3.12"
-dependencies = ["cryptography", "jsonschema"]
+dependencies = [
+    "cryptography",
+    "jsonschema",
+    "rfc8785>=0.1.4",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -4,7 +4,7 @@ Directly couples the tool to the host audit subsystem without network overhead.
 Used primarily for testing and local demonstration.
 """
 
-from auditable_mcp.capability import AuditCapability
+from auditable_mcp.capability import AuditCapability, NegotiationResult
 from auditable_mcp.host import AuditHost
 from auditable_mcp.transport import AttemptResponse
 
@@ -16,9 +16,9 @@ class InProcessTransport:
         """Bind the transport to a host audit subsystem."""
         self._host = host
 
-    def negotiate(self) -> AuditCapability:
-        """Return the host-declared audit capability."""
-        return self._host.negotiate()
+    def negotiate(self, offered: AuditCapability) -> NegotiationResult:
+        """Forward the tool's offered capability to the host and return the negotiation result."""
+        return self._host.negotiate(offered)
 
     def send_attempt(self, event: dict) -> AttemptResponse:
         """Forward audit/attempt to the host."""

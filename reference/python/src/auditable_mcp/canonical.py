@@ -1,29 +1,26 @@
 """Deterministic canonical JSON serialization and hashing.
 
-Canonical form rules:
-- Object keys sorted recursively.
-- No insignificant whitespace.
-- Non-ASCII characters preserved.
-- Null values preserved.
+Serialization follows the JSON Canonicalization Scheme (JCS), RFC 8785, delegated to the
+``rfc8785`` package rather than a hand-rolled serializer. The TypeScript port uses the
+``canonicalize`` package; both implement RFC 8785 and produce byte-identical output (verified
+against the shared conformance vectors under spec/vectors).
 """
 
-import json
 from hashlib import sha256
 
-# JSON separators with no insignificant whitespace (matches JSON.stringify output).
-_SEPARATORS = (',', ':')
+import rfc8785
 
 
 def canonicalize(value: object) -> str:
-    """Serialize a JSON-compatible value to its canonical string form.
+    """Serialize a JSON-compatible value to its RFC 8785 (JCS) canonical string form.
 
     Args:
         value: Any JSON-compatible value (dict, list, str, int, bool, None).
 
     Returns:
-        The canonical JSON string: keys sorted recursively, no whitespace, non-ASCII kept.
+        The RFC 8785 canonical JSON string.
     """
-    return json.dumps(value, sort_keys=True, separators=_SEPARATORS, ensure_ascii=False)
+    return rfc8785.dumps(value).decode('utf-8')
 
 
 def sha256_hex(data: str) -> str:
@@ -31,6 +28,6 @@ def sha256_hex(data: str) -> str:
     return sha256(data.encode('utf-8')).hexdigest()
 
 
-def hash_params(params: object) -> str:
-    """Return the `sha256:<hex>` hash of the canonical form of `params`."""
-    return f'sha256:{sha256_hex(canonicalize(params))}'
+def hash_canonical(value: object) -> str:
+    """Return the `sha256:<hex>` hash of the canonical form of `value` (an action_context_hash)."""
+    return f'sha256:{sha256_hex(canonicalize(value))}'

@@ -25,7 +25,7 @@
     },
     "action_type": {
       "type": "string",
-      "pattern": "^(ext(\\.[a-z0-9_]+){2,}|(?!ext(\\.|$))[a-z0-9_]+(\\.[a-z0-9_]+)+)$"
+      "minLength": 1
     },
     "mutates": {
       "type": "boolean"
@@ -63,7 +63,17 @@
         "aborted"
       ]
     },
-    "params_hash": {
+    "reason": {
+      "type": "string"
+    },
+    "action_context": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "action_context_hash": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
@@ -88,8 +98,7 @@
     "mutates",
     "egress",
     "target_resource",
-    "outcome",
-    "params_hash"
+    "outcome"
   ],
   "additionalProperties": false
 }

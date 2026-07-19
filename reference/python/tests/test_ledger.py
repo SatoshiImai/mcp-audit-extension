@@ -16,19 +16,19 @@ def _event(event_id: str, outcome: str) -> dict:
         'egress': False,
         'target_resource': {'kind': 'table', 'ref': 'customers'},
         'outcome': outcome,
-        'params_hash': f'sha256:{"0" * 64}',
+        'action_context_hash': f'sha256:{"0" * 64}',
     }
 
 
 def test_assigns_sequence_and_links_chain() -> None:
-    """Sequence starts at 0, prev_hash links, and the digest is the tail hash."""
+    """Sequence starts at 0, previous_hash links, and the digest is the tail hash."""
     ledger = Ledger('t#d')
     a = ledger.append(_event('00000000-0000-4000-8000-000000000001', 'attempted'), 'host-ts:1')
     b = ledger.append(_event('00000000-0000-4000-8000-000000000001', 'success'), 'host-ts:2')
     assert a.seq == 0
     assert b.seq == 1
-    assert a.prev_hash == GENESIS_HASH
-    assert b.prev_hash == a.record_hash
+    assert a.previous_hash == GENESIS_HASH
+    assert b.previous_hash == a.record_hash
     assert ledger.digest() == b.record_hash
 
 

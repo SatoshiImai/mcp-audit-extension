@@ -15,7 +15,7 @@ def _attempt(overrides: dict | None = None) -> dict:
         'egress': False,
         'target_resource': {'kind': 'table', 'ref': 'customers', 'scope_hint': 'row:id=c_1'},
         'outcome': 'attempted',
-        'params_hash': f'sha256:{"0" * 64}',
+        'action_context_hash': f'sha256:{"0" * 64}',
     }
     if overrides:
         event.update(overrides)
@@ -32,7 +32,7 @@ def test_accepts_valid_attempt() -> None:
 def test_rejects_schema_invalid_without_sealing() -> None:
     """A schema-invalid record (a lie) is rejected and never sealed."""
     host = AuditHost('t#d')
-    res = host.handle_attempt(_attempt({'params_hash': 'not-a-hash'}))
+    res = host.handle_attempt(_attempt({'action_context_hash': 'not-a-hash'}))
     assert res.status == 'reject'
     assert len(host.records()) == 0
     assert any(a.kind == 'schema-invalid' for a in host.anomalies())

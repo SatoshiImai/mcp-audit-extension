@@ -46,9 +46,9 @@ export function verifyLedger(records: readonly SealedRecord[], anchoredDigest?: 
 
     const recomputed = computeRecordHash(rec.event, rec.seq, rec.host_ts, prevRecomputed);
 
-    // 3. Stored prev_hash must link to the recomputed previous hash.
-    if (rec.prev_hash !== prevRecomputed) {
-      issues.push({ seq: rec.seq, kind: 'prev-hash-mismatch', detail: 'prev_hash does not link to previous record' });
+    // 3. Stored previous_hash must link to the recomputed previous hash.
+    if (rec.previous_hash !== prevRecomputed) {
+      issues.push({ seq: rec.seq, kind: 'prev-hash-mismatch', detail: 'previous_hash does not link to previous record' });
     }
 
     // 4. Stored record_hash must equal the recomputation over the committed bytes (localizes

@@ -1,5 +1,5 @@
 import type { AuditEvent } from '../schema/event.js';
-import type { AuditCapability } from '../schema/capability.js';
+import type { AuditCapability, NegotiationResult } from '../schema/capability.js';
 import type { AuditHost } from '../host/auditHost.js';
 import type { AttemptResponse, AuditTransport } from './transport.js';
 
@@ -8,8 +8,8 @@ import type { AttemptResponse, AuditTransport } from './transport.js';
 export class InProcessTransport implements AuditTransport {
   constructor(private readonly host: AuditHost) {}
 
-  negotiate(): AuditCapability {
-    return this.host.negotiate();
+  negotiate(offered: AuditCapability): NegotiationResult {
+    return this.host.negotiate(offered);
   }
 
   async sendAttempt(event: AuditEvent): Promise<AttemptResponse> {

@@ -1,7 +1,7 @@
 import { AuditHost } from '../host/auditHost.js';
 import { InProcessTransport } from '../transport/inProcess.js';
 import { AmcpSession, AmcpBlockedError, deterministicDeps } from '../tool/amcp.js';
-import { ResearchTool } from '../tool/researchTool.js';
+import { SqlAnalystTool } from '../tool/sqlAnalystTool.js';
 import { verifyLedger } from '../verify/verify.js';
 import { runCleanScenario } from './scenario.js';
 import type { SealedRecord } from '../ledger/ledger.js';
@@ -41,16 +41,16 @@ async function main(): Promise<void> {
   const anchored = host.ledger.digest(); // Tier3 anchor taken once, out-of-band.
   console.log('\n[1] Clean run — sealed ledger (attempt + outcome per internal op):');
   printLedger(host.records());
-  console.log('      ↑ note api.request: mut=0 egr=1 — a read-only web search still EGRESSES');
-  console.log('        the query. Nothing changed; the secret left in the keywords.');
+  console.log('      db.query: mut=0 egr=1 — a read-only SELECT still egresses to the DB.');
+  console.log('      Tables touched are disclosed; the exact SQL is sealed, not logged raw.');
   console.log('');
   printReport('verify', host.records(), anchored);
 
   // 2. Tamper: mutate a sealed field. The chain recomputation catches it.
   console.log('\n[2] Tamper — flip a sealed field, then re-verify:');
   const tampered = await runCleanScenario();
-  const rec = tampered.ledger.unsafeMutableRecords()[1]; // the web-search record
-  if (rec) rec.event.target_resource.ref = 'https://evil.example/exfil'; // forge the target
+  const rec = tampered.ledger.unsafeMutableRecords()[1]; // the db.query record
+  if (rec) rec.event.target_resource.ref = 'evil-db'; // forge the target
   printReport('verify', tampered.records(), anchored);
 
   // 3. Loss: drop a sealed record. The sequence gap is detected.
@@ -64,8 +64,8 @@ async function main(): Promise<void> {
   const h4 = new AuditHost('acme#2026-07-15');
   const t4 = new InProcessTransport(h4);
   const s4 = new AmcpSession(t4, 'call_abc', deterministicDeps());
-  const tool4 = new ResearchTool(s4);
-  await tool4.search('acme corp merger due diligence');
+  const tool4 = new SqlAnalystTool(s4);
+  await tool4.analyze('What were the high-value customer trends in the Tokyo area last month?');
   const replay = {
     id: '00000000-0000-4000-8000-000000000001', // reuse the first attempt id
     spec_version: 'auditable-mcp/0.1',
@@ -74,9 +74,8 @@ async function main(): Promise<void> {
     action_type: 'db.write',
     mutates: true,
     egress: false,
-    target_resource: { kind: 'table', ref: 'notes', scope_hint: 'topic=acme' },
+    target_resource: { kind: 'table', ref: 'analysis_results' },
     outcome: 'attempted',
-    params_hash: `sha256:${'0'.repeat(64)}`,
   };
   const resp = h4.handleAttempt(replay);
   console.log(`  replay attempt → ${resp.status}${resp.status !== 'accept' ? ` (${resp.reason})` : ''}`);
@@ -89,9 +88,9 @@ async function main(): Promise<void> {
   h5.unavailable = true;
   const t5 = new InProcessTransport(h5);
   const s5 = new AmcpSession(t5, 'call_abc', deterministicDeps());
-  const tool5 = new ResearchTool(s5);
+  const tool5 = new SqlAnalystTool(s5);
   try {
-    await tool5.saveNote('acme', 'this write must never happen');
+    await tool5.analyze('What were the high-value customer trends in the Tokyo area last month?');
     console.log('  ❌ action proceeded despite no durable record (BUG)');
   } catch (err) {
     if (err instanceof AmcpBlockedError) {

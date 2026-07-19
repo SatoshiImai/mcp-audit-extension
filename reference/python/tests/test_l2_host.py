@@ -20,7 +20,7 @@ def _attempt(n: int) -> dict:
         'egress': False,
         'target_resource': {'kind': 'table', 'ref': 'customers'},
         'outcome': 'attempted',
-        'params_hash': f'sha256:{"0" * 64}',
+        'action_context_hash': f'sha256:{"0" * 64}',
     }
 
 

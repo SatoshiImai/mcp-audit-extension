@@ -1,15 +1,14 @@
 import { auditEventSchema, type AuditEvent } from '../schema/event.js';
-import type { AuditCapability } from '../schema/capability.js';
-import { DEFAULT_L1_CAPABILITY } from '../schema/capability.js';
+import type { AuditCapability, NegotiationResult } from '../schema/capability.js';
+import { DEFAULT_L1_CAPABILITY, negotiateCapability } from '../schema/capability.js';
 import { Ledger, type SealedRecord } from '../ledger/ledger.js';
 import type { AttemptResponse } from '../transport/transport.js';
 import { verifyEventSignature } from '../l2/signing.js';
 import type { KeyRegistry } from '../l2/keys.js';
 
-// Host-side audit subsystem. Receives self-attested events, decides accept/reject/unavailable,
-// and seals accepted records into the tamper-evident ledger. It does not authorize domain
-// actions (that is the operator's allowlist); it only rejects malformed, forged, or replayed
-// records so they never enter the chain.
+// Host-side audit subsystem. Decides accept/reject/unavailable and seals accepted records into
+// the tamper-evident ledger. Does not authorize domain actions (operator allowlist owns that);
+// rejects only malformed, forged, or replayed records so they never enter the chain.
 
 export interface IntegrityAnomaly {
   id: string;
@@ -36,7 +35,7 @@ export class AuditHost {
   private readonly anomalies: IntegrityAnomaly[] = [];
   private hostClock = 0;
 
-  // Demo switch: simulate a durability failure, which must fail closed.
+  // Test switch: simulate durability failure; must fail closed.
   unavailable = false;
 
   constructor(partition: string, capability: AuditCapability = DEFAULT_L1_CAPABILITY, keyRegistry?: KeyRegistry) {
@@ -45,23 +44,23 @@ export class AuditHost {
     this.keyRegistry = keyRegistry;
   }
 
-  negotiate(): AuditCapability {
-    return this.capability;
+  negotiate(offered: AuditCapability): NegotiationResult {
+    return negotiateCapability(this.capability, offered);
   }
 
   getAnomalies(): readonly IntegrityAnomaly[] {
     return this.anomalies;
   }
 
-  // Deterministic monotonic host time (no wall clock, for reproducible test vectors).
+  // Deterministic monotonic host time in ISO-8601 (§8.2); no wall clock, for reproducible vectors.
   private nextHostTs(): string {
     this.hostClock += 1;
-    return `host-ts:${this.hostClock}`;
+    return `2026-07-15T00:00:${String(this.hostClock).padStart(2, '0')}.000Z`;
   }
 
-  // L2 check: verify the signature (over a registered key) and per-tool sequence. Unsigned,
-  // forged, or replayed records are rejected. A forward sequence gap is flagged but not
-  // rejected, since the missing event cannot be recovered. No-op under L1.
+  // L2 (§7.4): verify signature over a registered key and per-tool sequence. Unsigned, forged,
+  // or replayed records are rejected. A forward sequence gap is flagged, not rejected: the
+  // suppressed event is unrecoverable. No-op under L1.
   private checkL2(event: AuditEvent): { reject: false } | { reject: true; reason: string } {
     if (this.capability.level !== 'L2') return { reject: false };
 
@@ -112,7 +111,7 @@ export class AuditHost {
     if (this.unavailable) {
       return { status: 'unavailable', reason: 'tier1-durability-failure', retryable: true };
     }
-    // Replayed attempt id: reject as a duplicate.
+    // Replayed attempt id: reject as duplicate.
     if (this.acceptedAttempts.has(event.id)) {
       this.rejectedIds.add(event.id);
       this.anomalies.push({ id: event.id, kind: 'attempt-replay', detail: 'duplicate attempt id' });
@@ -120,11 +119,18 @@ export class AuditHost {
     }
     const sealed = this.ledger.append(event, this.nextHostTs());
     this.acceptedAttempts.add(event.id);
-    return { status: 'accept', seq: sealed.seq, record_hash: sealed.record_hash };
+    // Verifiable Accept (§7.1): return host-assigned fields the tool needs to reconstruct the
+    // §8.2 preimage for Polluted Stop verification.
+    return {
+      status: 'accept',
+      seq: sealed.seq,
+      record_hash: sealed.record_hash,
+      host_ts: sealed.host_ts,
+      previous_hash: sealed.previous_hash,
+    };
   }
 
-  // Outcome is appended, not gated. An outcome for an id that was never accepted, or was
-  // rejected, is flagged.
+  // Outcome is appended, not gated. An outcome for an id never accepted, or rejected, is flagged.
   handleOutcome(raw: unknown): void {
     const parsed = auditEventSchema.safeParse(raw);
     if (!parsed.success) {
@@ -132,7 +138,7 @@ export class AuditHost {
       return;
     }
     const event = parsed.data;
-    // L2: drop an outcome with an invalid signature/sequence (a notification has no reply).
+    // L2: drop an outcome with invalid signature/sequence (a notification has no reply).
     if (this.checkL2(event).reject) return;
     if (this.rejectedIds.has(event.id)) {
       this.anomalies.push({ id: event.id, kind: 'outcome-after-reject', detail: `outcome=${event.outcome} for rejected id` });

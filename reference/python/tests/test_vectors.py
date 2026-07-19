@@ -41,7 +41,7 @@ def test_chain_vector() -> None:
     prev = GENESIS_HASH
     for i, record in enumerate(chain['records']):
         assert record['seq'] == i
-        assert record['prev_hash'] == prev
+        assert record['previous_hash'] == prev
         recomputed = compute_record_hash(record['event'], record['seq'], record['host_ts'], prev)
         assert recomputed == record['record_hash']
         prev = recomputed

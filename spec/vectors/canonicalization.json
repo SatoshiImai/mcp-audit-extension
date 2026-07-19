@@ -36,10 +36,10 @@
   {
     "name": "unicode",
     "value": {
-      "note": "café — 日本語 — 🔒 lock"
+      "note": "café — Ünïcödé — 🔒 lock"
     },
-    "canonical": "{\"note\":\"café — 日本語 — 🔒 lock\"}",
-    "sha256": "656ef4921ec2bf1acd5ea1a985bac63113c41554d94bddfa8bd758aab70382cd"
+    "canonical": "{\"note\":\"café — Ünïcödé — 🔒 lock\"}",
+    "sha256": "e795da130bef43f2538471e0bad2a705f1851f09027334e99ef4f56dcbe350f6"
   },
   {
     "name": "scalars",

@@ -1,7 +1,7 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { AuditEvent } from '../schema/event.js';
-import type { AuditCapability } from '../schema/capability.js';
-import { DEFAULT_L1_CAPABILITY } from '../schema/capability.js';
+import type { AuditCapability, NegotiationResult } from '../schema/capability.js';
+import { DEFAULT_L1_CAPABILITY, negotiateCapability } from '../schema/capability.js';
 import type { AttemptResponse, AuditTransport } from './transport.js';
 import {
   AUDIT_ATTEMPT_METHOD,
@@ -11,21 +11,20 @@ import {
   type AuditOutcomeNotification,
 } from './mcpWire.js';
 
-// The tool server, typed so it can send the Auditable MCP methods to the client.
+// Tool server typed to send the Auditable MCP methods to the client.
 export type AuditToolServer = Server<AuditAttemptRequest, AuditOutcomeNotification>;
 
-// McpTransport is the B2 drop-in: it speaks the real MCP wire (server→client request for
-// attempt, notification for outcome). Everything above the AuditTransport interface — schema,
-// ledger, host, verifier, and the tool's audit-before-act logic — is reused unchanged. This
-// is the only asset that differs from B1's InProcessTransport.
+// MCP-wire transport: server->client request for attempt, notification for outcome. The only
+// AuditTransport implementation that touches the MCP SDK; schema, ledger, host, verifier, and the
+// tool's audit-before-act logic sit above this interface unchanged.
 export class McpTransport implements AuditTransport {
   constructor(
     private readonly server: AuditToolServer,
     private readonly capability: AuditCapability = DEFAULT_L1_CAPABILITY,
   ) {}
 
-  negotiate(): AuditCapability {
-    return this.capability;
+  negotiate(offered: AuditCapability): NegotiationResult {
+    return negotiateCapability(this.capability, offered);
   }
 
   async sendAttempt(event: AuditEvent): Promise<AttemptResponse> {

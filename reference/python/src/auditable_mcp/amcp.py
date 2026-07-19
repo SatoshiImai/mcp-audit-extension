@@ -11,8 +11,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Protocol, TypeVar
 
-from auditable_mcp.action_type import resolve_effect
-from auditable_mcp.canonical import hash_params
+from auditable_mcp.canonical import hash_canonical
+from auditable_mcp.ledger import compute_record_hash
 from auditable_mcp.transport import AuditTransport
 
 SPEC_VERSION = 'auditable-mcp/0.1'
@@ -61,7 +61,7 @@ class DeterministicDeps:
 class AmcpSession:
     """Wraps internal operations in the audit-before-act lifecycle.
 
-    Note: L1 and L2 emission disciplines are identical. L2 only adds a signer.
+    L1 and L2 emission are identical; L2 only adds a signer.
     """
 
     def __init__(
@@ -81,29 +81,47 @@ class AmcpSession:
         self,
         action_type: str,
         target_resource: dict,
-        params: object,
         perform: Callable[[], T],
-        mutates: bool | None = None,
-        egress: bool | None = None,
+        *,
+        mutates: bool,
+        egress: bool,
+        disclose: dict | None = None,
+        commit: object | None = None,
     ) -> T:
-        """Emit attempt, await accept, perform the action, then emit the outcome."""
-        resolved_mutates, resolved_egress = resolve_effect(action_type, mutates, egress)
+        """Emit attempt, await accept, perform the action, then emit the outcome.
+
+        The effect axis (mutates, egress) is declared explicitly per operation. Confidentiality
+        is the tool's choice (§4.3): ``disclose`` records cleartext params, ``commit`` records
+        a hash of the exact input; either, both, or neither may be given.
+        """
         base = {
             'id': self._deps.new_id(),
             'spec_version': SPEC_VERSION,
             'ts': self._deps.now(),
             'call_id': self._call_id,
             'action_type': action_type,
-            'mutates': resolved_mutates,
-            'egress': resolved_egress,
+            'mutates': mutates,
+            'egress': egress,
             'target_resource': target_resource,
-            'params_hash': hash_params(params),
         }
+        if disclose is not None:
+            base['action_context'] = disclose
+        if commit is not None:
+            base['action_context_hash'] = hash_canonical(commit)
         attempt = self._stamp({**base, 'outcome': 'attempted'})
         response = self._transport.send_attempt(attempt)
         if response.status != 'accept':
-            # No valid record: do not perform the action.
-            raise AmcpBlockedError(action_type, target_resource['ref'], response.reason or 'blocked')
+            # reject (invalid/forged) or unavailable (not persisted): do not act; signal aborted (§11.3).
+            reason = 'host-rejected' if response.status == 'reject' else 'host-unavailable'
+            self._abort(base, attempt['id'], reason)
+            raise AmcpBlockedError(action_type, target_resource['ref'], reason)
+        # Polluted Stop (§7.2): MUST under L2 (signer present), OPTIONAL under L1. Recompute
+        # record_hash over the attempt bytes; mismatch means the host sealed a different record.
+        if self._signer is not None:
+            expected = compute_record_hash(attempt, response.seq, response.host_ts, response.previous_hash)
+            if expected != response.record_hash:
+                self._abort(base, attempt['id'], 'hash-mismatch')
+                raise AmcpBlockedError(action_type, target_resource['ref'], 'hash-mismatch')
         try:
             result = perform()
             self._transport.send_outcome(self._stamp({**base, 'id': attempt['id'], 'outcome': 'success'}))
@@ -112,3 +130,7 @@ class AmcpSession:
             # Seal the failed outcome, then re-raise.
             self._transport.send_outcome(self._stamp({**base, 'id': attempt['id'], 'outcome': 'failed'}))
             raise
+
+    def _abort(self, base: dict, event_id: str, reason: str) -> None:
+        """Emit an aborted outcome recording why the domain action was not performed."""
+        self._transport.send_outcome(self._stamp({**base, 'id': event_id, 'outcome': 'aborted', 'reason': reason}))

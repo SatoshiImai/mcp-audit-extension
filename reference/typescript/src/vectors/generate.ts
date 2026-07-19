@@ -8,7 +8,7 @@ import { CANONICALIZATION_CASES, EVENT_CASES } from './fixtures.js';
 
 // Generate the committed golden vectors. Any independent implementation must reproduce
 // these byte-for-byte: canonical serialization, per-event hashes, and a full sealed chain
-// (sequence + prev_hash + record_hash + anchored digest). This is the Auditable MCP analogue of
+// (sequence + previous_hash + record_hash + anchored digest). This is the Auditable MCP analogue of
 // SEP-3004's conformance test vectors.
 
 interface CanonicalizationVector {
@@ -26,7 +26,7 @@ interface EventVector {
 }
 
 interface ChainVector {
-  records: Array<{ event: unknown; seq: number; host_ts: string; prev_hash: string; record_hash: string }>;
+  records: Array<{ event: unknown; seq: number; host_ts: string; previous_hash: string; record_hash: string }>;
   digest: string;
 }
 
@@ -47,7 +47,7 @@ async function build(): Promise<{ canonicalization: CanonicalizationVector[]; ev
       event: r.event,
       seq: r.seq,
       host_ts: r.host_ts,
-      prev_hash: r.prev_hash,
+      previous_hash: r.previous_hash,
       record_hash: r.record_hash,
     })),
     digest: host.ledger.digest(),

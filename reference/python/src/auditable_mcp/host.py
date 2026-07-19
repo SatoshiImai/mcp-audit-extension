@@ -10,7 +10,7 @@ The host does not authorize domain actions; it only validates record integrity.
 
 from dataclasses import dataclass
 
-from auditable_mcp.capability import DEFAULT_L1_CAPABILITY, AuditCapability
+from auditable_mcp.capability import DEFAULT_L1_CAPABILITY, AuditCapability, NegotiationResult, negotiate_capability
 from auditable_mcp.l2.keys import KeyRegistry
 from auditable_mcp.l2.signing import verify_event_signature
 from auditable_mcp.ledger import Ledger, SealedRecord
@@ -38,7 +38,7 @@ class AuditHost:
     ) -> None:
         """Initialize the host for a partition under the given capability and optional keys."""
         self.ledger = Ledger(partition)
-        # Demo switch: simulate Tier1 durability failure (infra), which must fail-closed.
+        # Test switch: simulate Tier1 durability failure; must fail closed.
         self.unavailable = False
         self._capability = capability
         self._key_registry = key_registry
@@ -81,9 +81,16 @@ class AuditHost:
         self._last_seq_by_key[key_id] = sequence
         return None
 
-    def negotiate(self) -> AuditCapability:
-        """Return the host-declared audit capability."""
-        return self._capability
+    def negotiate(self, offered: AuditCapability) -> NegotiationResult:
+        """Compare the tool's offered capability against the host requirement (§6.1).
+
+        Args:
+            offered: The capability the tool declares it supports.
+
+        Returns:
+            A NegotiationResult carrying the host requirement and whether the offer satisfies it.
+        """
+        return negotiate_capability(self._capability, offered)
 
     def anomalies(self) -> list[IntegrityAnomaly]:
         """Return the detected integrity anomalies."""
@@ -94,9 +101,9 @@ class AuditHost:
         return self.ledger.records()
 
     def _next_host_ts(self) -> str:
-        """Return a deterministic monotonic host timestamp (no wall clock)."""
+        """Return a deterministic monotonic host timestamp in ISO-8601 (no wall clock)."""
         self._host_clock += 1
-        return f'host-ts:{self._host_clock}'
+        return f'2026-07-15T00:00:{self._host_clock:02d}.000Z'
 
     def handle_attempt(self, event: object) -> AttemptResponse:
         """Validate and, if durable, seal an attempt; otherwise reject/unavailable."""
@@ -127,7 +134,9 @@ class AuditHost:
             return reject('attempt-replay')
         sealed = self.ledger.append(event, self._next_host_ts())
         self._accepted_attempts.add(event['id'])
-        return accept(sealed.seq, sealed.record_hash)
+        # Verifiable Accept (§7.1): return host-assigned fields the tool needs to reconstruct the
+        # §8.2 preimage for Polluted Stop verification.
+        return accept(sealed.seq, sealed.record_hash, sealed.host_ts, sealed.previous_hash)
 
     def handle_outcome(self, event: object) -> None:
         """Append an outcome, flagging an outcome that has no accepted attempt or follows a reject."""
