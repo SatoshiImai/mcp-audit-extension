@@ -2,7 +2,7 @@
 
 Responsibilities:
 - Receive self-attested events from tools.
-- Validate schema and sequence (rejecting malformed/replayed records).
+- Validate schema and signer_seq (rejecting malformed/replayed records).
 - Seal accepted records into the tamper-evident ledger.
 
 The host does not authorize domain actions; it only validates record integrity.
@@ -55,42 +55,49 @@ class AuditHost:
         self._anomalies.append(IntegrityAnomaly(id=event_id, kind=kind, detail=detail))
 
     def _check_l2(self, event: dict) -> str | None:
-        """Verify the L2 signature and per-tool sequence. Return a reject reason, or None.
+        """Verify the L2 signature and per-key_id signer_seq. Return a reject reason, or None.
 
-        Unsigned/forged/replayed records are rejected. A forward sequence gap is flagged but
-        not rejected, since the missing event cannot be recovered. No-op under L1.
+        Unsigned/forged/replayed records are rejected. A forward signer_seq gap is flagged
+        (signer-seq-gap) but not rejected, since the missing event cannot be recovered. No-op
+        under L1. The first signer_seq for a key_id (no prior tracked value) is the baseline, accepted and never
+        flagged as a gap.
         """
         if self._capability.level != 'L2':
             return None
         key_id = event.get('key_id')
-        if not event.get('signature') or not key_id or event.get('sequence') is None:
-            self._flag(event['id'], 'l2-unsigned', 'L2 requires signature, key_id, sequence')
+        if not event.get('signature') or not key_id or event.get('signer_seq') is None:
+            self._flag(event['id'], 'l2-unsigned', 'L2 requires signature, key_id, signer_seq')
             return 'l2-unsigned'
-        public_key = self._key_registry.get(key_id) if self._key_registry is not None else None
-        if public_key is None:
+        registered = self._key_registry.get(key_id) if self._key_registry is not None else None
+        if registered is None:
             self._flag(event['id'], 'unknown-key', f'no registered key for {key_id}')
             return 'unknown-key'
-        if not verify_event_signature(event, public_key):
+        if not verify_event_signature(event, registered):
             self._flag(event['id'], 'signature-invalid', 'signature does not verify (forged/altered)')
             return 'signature-invalid'
-        last = self._last_seq_by_key.get(key_id, -1)
-        sequence = event['sequence']
-        if sequence <= last:
-            self._flag(event['id'], 'sequence-replay', f'sequence {sequence} <= last {last}')
-            return 'sequence-replay'
-        if sequence > last + 1:
-            self._flag(event['id'], 'sequence-gap', f'expected {last + 1}, got {sequence} (suppressed event)')
+        signer_seq = event['signer_seq']
+        last = self._last_seq_by_key.get(key_id)
+        if last is None:
+            # First observation for this key_id is the baseline (§7.4): accepted as-is, never a gap,
+            # because there is no prior value to compare against (a persisted or cross-partition
+            # counter may legitimately start above 0).
+            return None
+        if signer_seq <= last:
+            self._flag(event['id'], 'replay-detected', f'signer_seq {signer_seq} <= last {last}')
+            return 'replay-detected'
+        if signer_seq > last + 1:
+            self._flag(event['id'], 'signer-seq-gap', f'expected {last + 1}, got {signer_seq} (suppressed event)')
         return None
 
     def _advance_seq(self, event: dict) -> None:
-        """Advance the per-key sequence tracker; called only after a record is sealed (§7.4).
+        """Advance the per-key signer_seq tracker; called only after a record is sealed (§7.4).
 
-        The tracker follows the last *accepted* (sealed) sequence, not the last seen, so an
-        `unavailable`/retryable attempt does not poison the sequence for a retry.
+        The tracker follows the last *accepted* (sealed) signer_seq, not the last seen, so an
+        `unavailable`/retryable attempt does not poison the counter for a retry.
         """
         key_id = event.get('key_id')
-        if key_id is not None and event.get('sequence') is not None:
-            self._last_seq_by_key[key_id] = event['sequence']
+        if key_id is not None and event.get('signer_seq') is not None:
+            self._last_seq_by_key[key_id] = event['signer_seq']
 
     def negotiate(self, offered: AuditCapability) -> NegotiationResult:
         """Compare the tool's offered capability against the host requirement (§6.1).
@@ -125,33 +132,38 @@ class AuditHost:
             return reject('schema-invalid')
         assert isinstance(event, dict)
         if event['outcome'] != 'attempted':
+            # Tier-1 schema-invalid; the Tier-2 specifics go in detail (§7.6).
             self._anomalies.append(
-                IntegrityAnomaly(id=event['id'], kind='schema-invalid', detail='attempt must carry outcome=attempted')
+                IntegrityAnomaly(
+                    id=event['id'],
+                    kind='schema-invalid',
+                    detail='attempt-must-be-attempted: attempt must carry outcome=attempted',
+                )
             )
-            return reject('attempt-must-be-attempted')
+            return reject('schema-invalid')
         # Not canonicalizable (§8.1): reject gracefully instead of raising at seal time.
         if has_unsafe_number(event):
             self._anomalies.append(
                 IntegrityAnomaly(
-                    id=event['id'], kind='numeric-domain', detail='number not canonicalizable (§8.1)'
+                    id=event['id'], kind='schema-invalid', detail='numeric-domain: number not canonicalizable (§8.1)'
                 )
             )
-            return reject('numeric-domain')
+            return reject('schema-invalid')
         # L2: reject forged/unsigned/replayed records before sealing.
         l2_reason = self._check_l2(event)
         if l2_reason is not None:
             self._rejected_ids.add(event['id'])
             return reject(l2_reason)
-        # Persistence failure: fail closed (retryable).
+        # Persistence failure: fail closed (retryable), returned as internal-error (§7.6).
         if self.unavailable:
-            return unavailable('persistence-failure')
+            return unavailable('internal-error')
         # Replayed attempt id: reject as a duplicate.
         if event['id'] in self._accepted_attempts:
             self._rejected_ids.add(event['id'])
             self._anomalies.append(
-                IntegrityAnomaly(id=event['id'], kind='attempt-replay', detail='duplicate attempt id')
+                IntegrityAnomaly(id=event['id'], kind='replay-detected', detail='id-replay: duplicate attempt id')
             )
-            return reject('attempt-replay')
+            return reject('replay-detected')
         sealed = self.ledger.append(event, self._next_host_ts())
         self._accepted_attempts.add(event['id'])
         self._advance_seq(event)
@@ -170,7 +182,7 @@ class AuditHost:
         if has_unsafe_number(event):
             self._anomalies.append(
                 IntegrityAnomaly(
-                    id=event['id'], kind='numeric-domain', detail='number not canonicalizable (§8.1)'
+                    id=event['id'], kind='schema-invalid', detail='numeric-domain: number not canonicalizable (§8.1)'
                 )
             )
             return
@@ -180,7 +192,7 @@ class AuditHost:
         # sequence that outran the unsealed attempt is not flagged as a suppression gap.
         if outcome == 'aborted' and event['id'] not in self._accepted_attempts:
             return
-        # L2: drop an outcome with an invalid signature/sequence.
+        # L2: drop an outcome with an invalid signature/signer_seq.
         if self._check_l2(event) is not None:
             return
         if event['id'] in self._accepted_attempts:
@@ -193,13 +205,15 @@ class AuditHost:
         if event['id'] in self._rejected_ids:
             self._anomalies.append(
                 IntegrityAnomaly(
-                    id=event['id'], kind='outcome-after-reject', detail=f'outcome={outcome} for rejected id'
+                    id=event['id'], kind='orphaned-outcome', detail=f'after-reject: outcome={outcome} for rejected id'
                 )
             )
         else:
             self._anomalies.append(
                 IntegrityAnomaly(
-                    id=event['id'], kind='outcome-without-attempt', detail=f'outcome={outcome} without accepted attempt'
+                    id=event['id'],
+                    kind='orphaned-outcome',
+                    detail=f'never-accepted: outcome={outcome} without accepted attempt',
                 )
             )
 

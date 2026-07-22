@@ -1,13 +1,20 @@
 """Tests for the L1 audit host: accept / reject / unavailable."""
 
+import json
+
+import pytest
+
 from auditable_mcp.host import AuditHost
+from auditable_mcp.paths import SPEC_VECTORS_DIR
+
+_ERROR_CASES = json.loads((SPEC_VECTORS_DIR / 'error-cases.json').read_text(encoding='utf-8'))
 
 
 def _attempt(overrides: dict | None = None) -> dict:
     """Build a valid attempt event, optionally overriding fields."""
     event = {
         'id': '00000000-0000-4000-8000-000000000001',
-        'spec_version': 'auditable-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1.1',
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.write',
@@ -41,9 +48,9 @@ def test_rejects_schema_invalid_without_sealing() -> None:
 def test_rejects_non_canonicalizable_number_without_raising() -> None:
     """§8.1: a non-canonicalizable number (out-of-range or non-finite) is rejected gracefully, not raised."""
     host = AuditHost('t#d')
-    assert host.handle_attempt(_attempt({'action_context': {'rows': 9007199254740992}})).reason == 'numeric-domain'
-    assert host.handle_attempt(_attempt({'action_context': {'x': float('inf')}})).reason == 'numeric-domain'
-    assert host.handle_attempt(_attempt({'action_context': {'x': float('nan')}})).reason == 'numeric-domain'
+    assert host.handle_attempt(_attempt({'action_context': {'rows': 9007199254740992}})).reason == 'schema-invalid'
+    assert host.handle_attempt(_attempt({'action_context': {'x': float('inf')}})).reason == 'schema-invalid'
+    assert host.handle_attempt(_attempt({'action_context': {'x': float('nan')}})).reason == 'schema-invalid'
     assert host.records() == []
 
 
@@ -54,7 +61,7 @@ def test_rejects_replayed_attempt() -> None:
     res = host.handle_attempt(_attempt())
     assert res.status == 'reject'
     assert len(host.records()) == 1
-    assert any(a.kind == 'attempt-replay' for a in host.anomalies())
+    assert any(a.kind == 'replay-detected' for a in host.anomalies())
 
 
 def test_unavailable_fail_closed() -> None:
@@ -69,11 +76,19 @@ def test_unavailable_fail_closed() -> None:
 def test_aborted_outcome_for_never_accepted_attempt_not_flagged() -> None:
     """§10.4: a fail-closed aborted outcome for a never-accepted attempt is not a tampering anomaly."""
     host = AuditHost('t#d')
-    host.handle_outcome(_attempt({'outcome': 'aborted'}))
+    host.handle_outcome(_attempt({'outcome': 'aborted', 'reason': 'host-rejected'}))
     assert host.anomalies() == []
     assert host.records() == []
     host.handle_outcome(_attempt({'outcome': 'success'}))
-    assert any(a.kind == 'outcome-without-attempt' for a in host.anomalies())
+    assert any(a.kind == 'orphaned-outcome' for a in host.anomalies())
+
+
+def test_reason_less_aborted_is_schema_invalid() -> None:
+    """§7.2: an aborted outcome MUST carry a Tier-1 abort code; a reason-less one is schema-invalid."""
+    host = AuditHost('t#d')
+    host.handle_outcome(_attempt({'outcome': 'aborted'}))  # no reason
+    assert any(a.kind == 'schema-invalid' for a in host.anomalies())
+    assert host.records() == []
 
 
 def test_outcomes_are_not_de_duplicated() -> None:
@@ -84,3 +99,17 @@ def test_outcomes_are_not_de_duplicated() -> None:
     host.handle_outcome(_attempt({'outcome': 'success'}))
     assert len(host.records()) == 3
     assert host.anomalies() == []
+
+
+@pytest.mark.parametrize('case', _ERROR_CASES, ids=[c['name'] for c in _ERROR_CASES])
+def test_negative_cases_match_pinned_code(case: dict) -> None:
+    """Each error-cases.json event is refused with the pinned Tier-1 code (§7.6, §8.4)."""
+    host = AuditHost('t#d')
+    if case['channel'] == 'attempt':
+        response = host.handle_attempt(case['event'])
+        assert response.status == case['expect']['status']
+        assert response.reason == case['expect']['reason']
+    else:
+        host.handle_outcome(case['event'])
+        assert host.records() == []
+        assert any(a.kind == case['expect']['anomaly_kind'] for a in host.anomalies())

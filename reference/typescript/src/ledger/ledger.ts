@@ -1,14 +1,14 @@
 import type { AuditEvent } from '../schema/event.js';
 import { canonicalize, sha256Hex } from './canonical.js';
 
-// A sealed record is a tool-emitted event plus host-assigned fields (sequence, previous_hash,
+// A sealed record is a tool-emitted event plus host-assigned fields (seq, previous_hash,
 // record_hash). Local deterministic simulation of a tamper-evident append-only ledger.
 
 export const GENESIS_HASH = '0'.repeat(64);
 
 export interface SealedRecord {
   event: AuditEvent;
-  seq: number; // partition-monotonic sequence assigned by the sealer (a gap means a record was lost)
+  seq: number; // partition-monotonic ledger index assigned by the sealer (a gap means a record was lost)
   host_ts: string; // authoritative host time
   previous_hash: string; // previous record_hash in the chain
   record_hash: string; // sha256( JCS({event, host_ts, previous_hash, seq}) )
@@ -26,7 +26,7 @@ export function computeRecordHash(
   return sha256Hex(canonicalize(preimage));
 }
 
-// Append-only, per-partition ledger. Append assigns the next sequence and links the chain.
+// Append-only, per-partition ledger. Append assigns the next seq and links the chain.
 export class Ledger {
   private records: SealedRecord[] = [];
 

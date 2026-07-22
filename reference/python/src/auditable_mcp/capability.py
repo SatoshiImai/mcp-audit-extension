@@ -6,11 +6,18 @@ declares it; both directions are exchanged during the MCP initialize phase (§6.
 
 from dataclasses import dataclass
 
+SPEC_VERSION = 'auditable-mcp/0.1.1'
+
 
 @dataclass(frozen=True)
 class AuditCapability:
-    """An audit capability: a requirement when host-declared, a supported level when tool-declared."""
+    """An audit capability: a requirement when host-declared, a supported level when tool-declared.
 
+    spec_version carries the supported Auditable MCP version so a common version is established
+    before events (which carry spec_version) are exchanged (§6.1).
+    """
+
+    spec_version: str = SPEC_VERSION  # supported version, e.g. auditable-mcp/0.1.1
     level: str = 'L1'  # 'L1' | 'L2'
     attempt: str = 'request'  # attempt is always a blocking request (fail-closed)
 
@@ -31,17 +38,21 @@ class NegotiationResult:
 
 
 def capability_satisfies(offered: AuditCapability, required: AuditCapability) -> bool:
-    """Return True if `offered` supports at least the `required` level.
+    """Return True if `offered` supports the required version and at least the required level.
 
-    Truthfulness is not verified here; runtime validation (§7) enforces the required level.
+    Truthfulness is not verified here; runtime validation (§7) enforces the required level. A
+    spec_version mismatch is unsatisfiable at negotiation: events are version-specific, so there is
+    no common wire format to fall back to (§6.1).
 
     Args:
         offered: The capability the tool declares it supports.
         required: The capability the host requires.
 
     Returns:
-        True if the offered level is at least the required level.
+        True if the offered version matches and the offered level is at least the required level.
     """
+    if offered.spec_version != required.spec_version:
+        return False
     return _LEVEL_RANK.get(offered.level, 0) >= _LEVEL_RANK.get(required.level, 0)
 
 

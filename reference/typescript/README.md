@@ -30,15 +30,16 @@ Run `npm run demo`:
 ## Level 2 (verifiable / non-repudiation)
 
 Run `npm run demo:l2`. L2 adds cryptographic evidentiary strength on the **same event
-schema** (Valid L2 ⊆ Valid L1): the tool signs each event (Ed25519 over `canonical(event - signature)`)
-and stamps a per-tool monotonic `sequence`. The host verifies against a public key
+schema** (Valid L2 ⊆ Valid L1): the tool signs each event over `canonical(event - signature)`
+with the algorithm bound to its `key_id` by the registry - Ed25519 or ECDSA P-256 (the KMS/PKI
+profile) - and stamps a per-key monotonic `signer_seq`. The host verifies against a public key
 registered out-of-band (onboarding), and:
 
 1. **Portable escalation** - the _same_ tool code becomes L2 by attaching a signer; the
    audit-before-act logic is unchanged (`AmcpSession`'s only new argument).
 2. **Forgery** - a record altered after signing -> `reject: signature-invalid`; ledger stays clean.
 3. **Unsigned under L2** -> `reject: l2-unsigned` (needs escalation).
-4. **Suppression via gap** - a skipped `sequence` exposes a hidden event -> flagged.
+4. **Suppression via gap** - a skipped `signer_seq` exposes a hidden event -> flagged.
 5. **Suppression by omission** - `reconcile()` compares self-reports to boundary-observed
    egress; an egress the boundary saw but the tool never reported -> `unreported-egress`.
    This is the one lie signatures alone cannot catch (the tool never emits).
@@ -68,18 +69,20 @@ The swap is a drop-in: the tool (`AmcpSession`, `SqlAnalystTool`), host (`AuditH
 ledger, and verifier are **byte-identical** across B1 and B2 - only the transport differs
 (`src/mcp/mcp.test.ts` proves the same seal + verify over the wire, including fail-closed).
 `audit/attempt` reuses the elicitation _wire form_ (a server-initiated request during
-`tools/call`), never its human-in-the-loop semantics.
+`tools/call`), never its human-in-the-loop semantics. Scope note: the reference demonstrates the
+negotiation logic and the per-event wire (`params` = the event), not the MCP `initialize`
+capability handshake (spec §6.1); that thin binding is out of scope for a protocol proof.
 
 ## Layout
 
 | Path             | Role                                                                                        |
 | ---------------- | ------------------------------------------------------------------------------------------- |
 | `src/schema/`    | Zod SoT: event + capability + attempt-response (`npm run schema:json` emits JSON Schema)    |
-| `src/ledger/`    | canonical JSON + sealer (sequence + hash chain)                                             |
+| `src/ledger/`    | canonical JSON + sealer (seq + hash chain)                                                  |
 | `src/transport/` | wire-shaped `AuditTransport` + `InProcessTransport` (B1) + `McpTransport` (B2)              |
 | `src/host/`      | audit subsystem: `accept` / `reject` / `unavailable`                                        |
 | `src/tool/`      | audit-before-act library + dummy first-party SQL analyst tool (NL question -> internal SQL) |
-| `src/l2/`        | signing (Ed25519), key registry, reconciliation (Level 2)                                   |
+| `src/l2/`        | signing (Ed25519 + ECDSA P-256), key registry, reconciliation (Level 2)                     |
 | `src/mcp/`       | MCP SDK wiring (tool server + host client over `InMemoryTransport`)                         |
 | `src/verify/`    | chain recompute, gap + tamper detection (`npm run verify`)                                  |
 | `src/demo/`      | the 5-scenario walkthrough (`npm run demo`)                                                 |
@@ -92,8 +95,10 @@ Auditable MCP analogue of SEP-3004's conformance vectors. The JSON Schema (`../.
 these vectors are the language-neutral contract both reference implementations validate against:
 
 - `canonicalization.json` - canonical serialization of primitives (key order, nesting, unicode, scalars).
-- `events.json` - canonical bytes + sha256 for representative events (L1 minimal -> L2 signed).
-- `chain.json` - a full sealed chain (seq + previous_hash + record_hash + anchored digest).
+- `events.json` - canonical bytes + sha256 for representative events (L1 minimal -> L2 signed -> aborted).
+- `chain.json` - a full sealed L1 chain (seq + previous_hash + record_hash + anchored digest).
+- `chain-signed.json` - a sealed L2 signed chain (record_hash hashes the signature, §8.2).
+- `error-cases.json` - events a host MUST reject, each with the expected Tier-1 reason.
 
 `vectors.test.ts` recomputes from the stored inputs and asserts equality, so the wire
 contract cannot drift silently: change canonicalization/hashing -> regenerate or the fence fails.
@@ -102,7 +107,7 @@ contract cannot drift silently: change canonicalization/hashing -> regenerate or
 
 ```
 npm install
-npm test             # 65 tests (incl. conformance vectors, schema fence, MCP wire, L2)
+npm test             # 67 tests (incl. conformance vectors, schema fence, MCP wire, L2)
 npm run demo         # L1 end-to-end walkthrough
 npm run demo:l2      # L2: signing, forgery reject, gap + suppression detection
 npm run verify       # verify the built-in scenario ledger (exit code reflects ok)
