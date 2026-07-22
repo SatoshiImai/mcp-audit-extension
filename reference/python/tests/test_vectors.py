@@ -35,9 +35,9 @@ def test_event_vectors() -> None:
         assert sha256_hex(case['canonical']) == case['sha256']
 
 
-def test_chain_vector() -> None:
-    """Recompute every record hash and the final digest from the chain inputs."""
-    chain = _load('chain.json')
+def _recompute_chain(name: str) -> None:
+    """Recompute every record hash and the final digest from a chain vector's inputs."""
+    chain = _load(name)
     prev = GENESIS_HASH
     for i, record in enumerate(chain['records']):
         assert record['seq'] == i
@@ -46,3 +46,15 @@ def test_chain_vector() -> None:
         assert recomputed == record['record_hash']
         prev = recomputed
     assert prev == chain['digest']
+
+
+def test_chain_vector() -> None:
+    """Recompute every record hash and the final digest from the L1 chain inputs."""
+    _recompute_chain('chain.json')
+
+
+def test_signed_chain_vector() -> None:
+    """Reproduce the Level-2 signed chain: record_hash is computed over the full event incl. signature (§8.2)."""
+    chain = _load('chain-signed.json')
+    assert all('signature' in record['event'] for record in chain['records'])
+    _recompute_chain('chain-signed.json')

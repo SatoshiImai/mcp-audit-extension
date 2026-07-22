@@ -1,4 +1,4 @@
-"""L2 walkthrough: signature (non-repudiation) + sequence + reconciliation.
+"""L2 walkthrough: signature (non-repudiation) + signer_seq + reconciliation.
 
 Blocking targets forged/invalid records, never the tool's domain action.
 Run: ``PYTHONPATH=src python -m auditable_mcp.demo.l2_demo``.
@@ -12,7 +12,7 @@ from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2.keys import KeyRegistry, ToolKey, generate_tool_key
 from auditable_mcp.l2.reconcile import BoundaryObserver, reconcile
-from auditable_mcp.l2.signing import Ed25519Signer, sign_event
+from auditable_mcp.l2.signing import KeySigner, sign_event
 from auditable_mcp.ledger import SealedRecord
 from auditable_mcp.sql_analyst_tool import SqlAnalystTool
 from auditable_mcp.verify import verify_ledger
@@ -24,21 +24,21 @@ L2_CAP = AuditCapability(level='L2')
 
 
 def _print_ledger(records: list[SealedRecord]) -> None:
-    """Log each sealed record showing the L2 key/sequence/signature fields."""
+    """Log each sealed record showing the L2 key/signer_seq/signature fields."""
     for r in records:
         e = r.event
         signature = (e.get('signature') or '')[:10]
         logger.info(
             f'  seq={r.seq} {e["action_type"]:<11} {e["outcome"]:<9} '
-            f'key={e.get("key_id", "-")}#seq{e.get("sequence", "-")} sig={signature}'
+            f'key={e.get("key_id", "-")}#seq{e.get("signer_seq", "-")} sig={signature}'
         )
 
 
 def _attempt_for(key: ToolKey, seq: int, ref: str) -> dict:
-    """Build and sign an attempt event with an explicit sequence."""
+    """Build and sign an attempt event with an explicit signer_seq."""
     base = {
         'id': f'00000000-0000-4000-8000-{seq + 1:012x}',
-        'spec_version': 'auditable-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1.1',
         'ts': '2026-07-16T00:00:00.000Z',
         'call_id': 'call_adv',
         'action_type': 'db.write',
@@ -48,25 +48,25 @@ def _attempt_for(key: ToolKey, seq: int, ref: str) -> dict:
         'outcome': 'attempted',
         'action_context_hash': _ZERO_HASH,
     }
-    return sign_event(base, key.key_id, seq, key.private_key)
+    return sign_event(base, key.key_id, seq, key.alg, key.private_key)
 
 
 def main() -> None:
     """Run the five L2 demonstration scenarios."""
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     logger.info(_RULE)
-    logger.info('Auditable MCP L2 PoC (Python) - signature (non-repudiation) + sequence + reconciliation')
+    logger.info('Auditable MCP L2 PoC (Python) - signature (non-repudiation) + signer_seq + reconciliation')
     logger.info("Blocking targets forged/invalid records, never the tool's domain action.")
     logger.info(_RULE)
 
     # Onboarding: register the tool's public key out-of-band.
     key = generate_tool_key('sql-analyst-key')
     registry = KeyRegistry()
-    registry.register(key.key_id, key.public_key)
+    registry.register(key.key_id, key.public_key, key.alg)
 
     logger.info('\n[1] Signed path - same tool code + a signer => L2 (portable escalation):')
     host = AuditHost('acme#2026-07-16', L2_CAP, registry)
-    signer = Ed25519Signer(key.key_id, key.private_key)
+    signer = KeySigner(key.key_id, key.alg, key.private_key)
     session = AmcpSession(InProcessTransport(host), 'call_abc', DeterministicDeps(), signer)
     tool = SqlAnalystTool(session)
     tool.analyze('What were the high-value customer trends in the Tokyo area last month?')
@@ -86,7 +86,7 @@ def main() -> None:
     h3 = AuditHost('acme#adv', L2_CAP, registry)
     unsigned = {
         'id': '00000000-0000-4000-8000-0000000000aa',
-        'spec_version': 'auditable-mcp/0.1',
+        'spec_version': 'auditable-mcp/0.1.1',
         'ts': '2026-07-16T00:00:00.000Z',
         'call_id': 'call_adv',
         'action_type': 'db.write',

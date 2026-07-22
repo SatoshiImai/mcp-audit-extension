@@ -26,7 +26,7 @@ digest as the TypeScript demo for the same deterministic scenario.
   read-only, yet the query egresses to the DB); tamper -> `record-hash-mismatch` +
   `digest-mismatch`; loss -> `seq-gap`; replayed id -> `reject`; unavailable -> fail-closed.
 - `python -m auditable_mcp.demo.l2_demo` (L2): portable escalation (same tool + a signer); forgery ->
-  `signature-invalid`; unsigned -> `l2-unsigned`; suppressed event -> `sequence-gap`; suppressed
+  `signature-invalid`; unsigned -> `l2-unsigned`; suppressed event -> `signer-seq-gap`; suppressed
   egress -> `unreported-egress` (reconciliation).
 
 The host is a monitoring camera over already-allowlisted tools. It never authorizes the
@@ -34,25 +34,25 @@ tool's domain action; the only thing it blocks is a **lie into the ledger**.
 
 ## Layout
 
-| Path                                    | Role                                                               |
-| --------------------------------------- | ------------------------------------------------------------------ |
-| `src/auditable_mcp/canonical.py`        | deterministic canonical JSON + hashing                             |
-| `src/auditable_mcp/schema.py`           | validation against the shared JSON Schema (`jsonschema`)           |
-| `src/auditable_mcp/ledger.py`           | sequence + hash chain (sealed records)                             |
-| `src/auditable_mcp/transport.py`        | wire-shaped `AuditTransport` protocol                              |
-| `src/auditable_mcp/in_process.py`       | in-process transport                                               |
-| `src/auditable_mcp/host.py`             | audit subsystem: L1 accept/reject/unavailable + L2 verify/sequence |
-| `src/auditable_mcp/amcp.py`             | audit-before-act session (± signer)                                |
-| `src/auditable_mcp/sql_analyst_tool.py` | dummy first-party SQL analyst tool (NL question -> internal SQL)   |
-| `src/auditable_mcp/l2/`                 | Ed25519 signing, key registry, reconciliation                      |
-| `src/auditable_mcp/verify.py`           | chain recompute, gap + tamper detection                            |
-| `src/auditable_mcp/demo/`               | L1 and L2 walkthroughs                                             |
+| Path                                    | Role                                                                 |
+| --------------------------------------- | -------------------------------------------------------------------- |
+| `src/auditable_mcp/canonical.py`        | deterministic canonical JSON + hashing                               |
+| `src/auditable_mcp/schema.py`           | validation against the shared JSON Schema (`jsonschema`)             |
+| `src/auditable_mcp/ledger.py`           | seq + hash chain (sealed records)                                    |
+| `src/auditable_mcp/transport.py`        | wire-shaped `AuditTransport` protocol                                |
+| `src/auditable_mcp/in_process.py`       | in-process transport                                                 |
+| `src/auditable_mcp/host.py`             | audit subsystem: L1 accept/reject/unavailable + L2 verify/signer_seq |
+| `src/auditable_mcp/amcp.py`             | audit-before-act session (with/without signer)                       |
+| `src/auditable_mcp/sql_analyst_tool.py` | dummy first-party SQL analyst tool (NL question -> internal SQL)     |
+| `src/auditable_mcp/l2/`                 | Ed25519 + ECDSA P-256 signing, key registry, reconciliation          |
+| `src/auditable_mcp/verify.py`           | chain recompute, gap + tamper detection                              |
+| `src/auditable_mcp/demo/`               | L1 and L2 walkthroughs                                               |
 
 ## Commands
 
 ```
 uv sync                                          # install runtime + dev deps from pyproject
-uv run pytest                                    # 46 tests (incl. cross-language vectors + L2)
+uv run pytest                                    # 48 tests (incl. cross-language vectors + L2)
 PYTHONPATH=src uv run python -m auditable_mcp.demo.demo
 PYTHONPATH=src uv run python -m auditable_mcp.demo.l2_demo
 uv run ruff check src tests                      # lint

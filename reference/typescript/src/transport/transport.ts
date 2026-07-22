@@ -5,13 +5,16 @@ import type { AuditCapability, NegotiationResult } from '../schema/capability.js
 // notification for outcome, plus capability negotiation. An MCP-SDK-backed transport drops in
 // without changes above this interface.
 
+// Tier-1 reject reason codes (§7.6); the wire reason is pinned to this closed set.
+export type RejectReason = 'schema-invalid' | 'replay-detected' | 'signature-invalid' | 'l2-unsigned' | 'unknown-key';
+
 // audit/attempt response. accept = record durably persisted; proceed. reject = invalid/forged
 // record; do not proceed. unavailable = transient persistence failure; do not proceed. None
 // authorize the domain action: fail-closed governs record completeness, not authorization.
 export type AttemptResponse =
   | { status: 'accept'; seq: number; record_hash: string; host_ts: string; previous_hash: string }
-  | { status: 'reject'; reason: string }
-  | { status: 'unavailable'; reason: string; retryable: true };
+  | { status: 'reject'; reason: RejectReason }
+  | { status: 'unavailable'; reason: 'internal-error'; retryable: true };
 
 export interface AuditTransport {
   // Bidirectional capability exchange (§6.1). Mismatch handling is an orchestrator concern.

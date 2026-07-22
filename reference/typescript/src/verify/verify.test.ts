@@ -29,7 +29,7 @@ describe('verifyLedger - proof of non-tampering + completeness', () => {
     host.ledger.unsafeMutableRecords().splice(2, 1);
     const report = verifyLedger(host.records());
     expect(report.ok).toBe(false);
-    expect(report.issues.some((i) => i.kind === 'seq-gap' || i.kind === 'prev-hash-mismatch')).toBe(true);
+    expect(report.issues.some((i) => i.kind === 'seq-gap' || i.kind === 'record-hash-mismatch')).toBe(true);
   });
 
   it('detects a swapped anchor digest (anchor consistency)', async () => {

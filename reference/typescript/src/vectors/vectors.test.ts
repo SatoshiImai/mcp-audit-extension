@@ -41,21 +41,33 @@ describe('conformance vectors - events', () => {
   }
 });
 
-describe('conformance vectors - sealed chain', () => {
-  const chain = load<{
-    records: Array<{ event: AuditEvent; seq: number; host_ts: string; previous_hash: string; record_hash: string }>;
-    digest: string;
-  }>('chain.json');
+type ChainVector = {
+  records: Array<{ event: AuditEvent; seq: number; host_ts: string; previous_hash: string; record_hash: string }>;
+  digest: string;
+};
 
-  it('recomputes every record_hash and the final digest from the record inputs', () => {
-    let prev = GENESIS_HASH;
-    chain.records.forEach((r, i) => {
-      expect(r.seq).toBe(i);
-      expect(r.previous_hash).toBe(prev);
-      const recomputed = computeRecordHash(r.event, r.seq, r.host_ts, prev);
-      expect(recomputed).toBe(r.record_hash);
-      prev = recomputed;
-    });
-    expect(prev).toBe(chain.digest);
+function recomputeChain(chain: ChainVector): void {
+  let prev = GENESIS_HASH;
+  chain.records.forEach((r, i) => {
+    expect(r.seq).toBe(i);
+    expect(r.previous_hash).toBe(prev);
+    const recomputed = computeRecordHash(r.event, r.seq, r.host_ts, prev);
+    expect(recomputed).toBe(r.record_hash);
+    prev = recomputed;
+  });
+  expect(prev).toBe(chain.digest);
+}
+
+describe('conformance vectors - sealed chain', () => {
+  it('recomputes every record_hash and the final digest from the record inputs (L1)', () => {
+    recomputeChain(load<ChainVector>('chain.json'));
+  });
+
+  // The signed chain pins that record_hash is computed over the full event INCLUDING `signature`
+  // (§8.2) - the case that forks Level-2 interop, and the one chain.json (L1, unsigned) never covers.
+  it('recomputes a Level-2 signed chain, hashing the signature into each record (L2)', () => {
+    const signed = load<ChainVector>('chain-signed.json');
+    expect(signed.records.every((r) => typeof r.event.signature === 'string')).toBe(true);
+    recomputeChain(signed);
   });
 });

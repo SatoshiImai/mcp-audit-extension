@@ -6,14 +6,14 @@ from auditable_mcp.amcp import AmcpAbortedError, AmcpSession, DeterministicDeps
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2.keys import generate_tool_key
-from auditable_mcp.l2.signing import Ed25519Signer
+from auditable_mcp.l2.signing import KeySigner
 from auditable_mcp.transport import AttemptResponse
 
 
-def _l2_signer() -> Ed25519Signer:
+def _l2_signer() -> KeySigner:
     """Build an Ed25519 signer, whose presence marks a session as Level 2."""
     key = generate_tool_key('polluted-stop-key')
-    return Ed25519Signer(key.key_id, key.private_key)
+    return KeySigner(key.key_id, key.alg, key.private_key)
 
 
 class _StubTransport:
@@ -143,7 +143,7 @@ def test_reject_emits_aborted_with_reason() -> None:
 
 def test_unavailable_emits_aborted_with_reason() -> None:
     """An unavailable host yields an aborted outcome carrying reason=host-unavailable."""
-    transport = _StubTransport(AttemptResponse(status='unavailable', reason='persistence-failure', retryable=True))
+    transport = _StubTransport(AttemptResponse(status='unavailable', reason='internal-error', retryable=True))
     session = AmcpSession(transport, 'call_abc', DeterministicDeps())
     with pytest.raises(AmcpAbortedError):
         session.audited('db.read', {'kind': 'table', 'ref': 'notes'}, lambda: None, mutates=False, egress=False)

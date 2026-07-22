@@ -37,3 +37,9 @@ def test_l2_host_not_satisfied_by_l1_tool() -> None:
 def test_l2_host_satisfied_by_l2_tool() -> None:
     """An L2-requiring host is satisfied by an L2 tool."""
     assert AuditHost('t#l2', _L2_REQUIRED).negotiate(_TOOL_L2).satisfied is True
+
+
+def test_spec_version_mismatch_is_unsatisfiable() -> None:
+    """A spec_version mismatch is unsatisfiable even at the same level (§6.1)."""
+    older_tool = replace(DEFAULT_L1_CAPABILITY, spec_version='auditable-mcp/0.1')
+    assert AuditHost('t#d').negotiate(older_tool).satisfied is False

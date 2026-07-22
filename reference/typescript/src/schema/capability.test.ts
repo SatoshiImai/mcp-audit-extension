@@ -29,4 +29,9 @@ describe('capability negotiation - bidirectional exchange', () => {
   it('an L2-requiring host is satisfied by an L2 tool', () => {
     expect(new AuditHost('t#l2', L2_REQUIRED).negotiate(TOOL_L2).satisfied).toBe(true);
   });
+
+  it('a spec_version mismatch is unsatisfiable even at the same level (§6.1)', () => {
+    const olderTool: AuditCapability = { ...DEFAULT_L1_CAPABILITY, spec_version: 'auditable-mcp/0.1' };
+    expect(new AuditHost('t#d').negotiate(olderTool).satisfied).toBe(false);
+  });
 });

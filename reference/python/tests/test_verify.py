@@ -32,4 +32,4 @@ def test_detects_dropped_record() -> None:
     del records[2]
     report = verify_ledger(records)
     assert not report.ok
-    assert any(i.kind in ('seq-gap', 'prev-hash-mismatch') for i in report.issues)
+    assert any(i.kind in ('seq-gap', 'record-hash-mismatch') for i in report.issues)

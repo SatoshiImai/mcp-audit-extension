@@ -1,7 +1,7 @@
 """Sealed records and the tamper-evident hash chain.
 
 Local deterministic implementation of a tamper-evident append-only ledger.
-A sealed record consists of the tool-emitted event plus host-assigned fields (sequence, previous_hash, record_hash).
+A sealed record consists of the tool-emitted event plus host-assigned fields (seq, previous_hash, record_hash).
 """
 
 from dataclasses import dataclass
@@ -22,7 +22,7 @@ def compute_record_hash(event: dict, seq: int, host_ts: str, previous_hash: str)
 
     Args:
         event: The audit event with absent optionals already omitted.
-        seq: The partition-monotonic sequence.
+        seq: The partition-monotonic ledger index.
         host_ts: The authoritative host timestamp.
         previous_hash: The previous record hash in the chain.
 
@@ -53,7 +53,7 @@ class Ledger:
         self._records: list[SealedRecord] = []
 
     def append(self, event: dict, host_ts: str) -> SealedRecord:
-        """Append an event, assigning the next sequence and linking the hash chain."""
+        """Append an event, assigning the next seq and linking the hash chain."""
         seq = len(self._records)
         previous_hash = self._records[-1].record_hash if self._records else GENESIS_HASH
         record_hash = compute_record_hash(event, seq, host_ts, previous_hash)

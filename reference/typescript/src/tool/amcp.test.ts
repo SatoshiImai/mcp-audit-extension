@@ -6,7 +6,7 @@ import type { AttemptResponse, AuditTransport } from '../transport/transport.js'
 import type { AuditEvent } from '../schema/event.js';
 import { DEFAULT_L1_CAPABILITY, type NegotiationResult } from '../schema/capability.js';
 import { generateToolKey } from '../l2/keys.js';
-import { Ed25519Signer } from '../l2/signing.js';
+import { KeySigner } from '../l2/signing.js';
 
 function session(host: AuditHost): AmcpSession {
   return new AmcpSession(new InProcessTransport(host), 'call_abc', deterministicDeps());
@@ -87,7 +87,7 @@ describe('AmcpSession - audit-before-act discipline', () => {
 describe('AmcpSession - Polluted Stop and abort signaling', () => {
   it('Level 2: aborts on a record_hash mismatch and emits aborted/hash-mismatch', async () => {
     const key = generateToolKey('polluted-stop-key');
-    const signer = new Ed25519Signer(key.keyId, key.privateKey);
+    const signer = new KeySigner(key.keyId, key.alg, key.privateKey);
     const transport = new StubTransport(ACCEPT_BAD_HASH);
     const s = new AmcpSession(transport, 'call_abc', deterministicDeps(), signer);
     const perform = vi.fn(async () => 'result');
@@ -118,7 +118,7 @@ describe('AmcpSession - Polluted Stop and abort signaling', () => {
   });
 
   it('emits aborted/host-unavailable when the host is unavailable', async () => {
-    const transport = new StubTransport({ status: 'unavailable', reason: 'persistence-failure', retryable: true });
+    const transport = new StubTransport({ status: 'unavailable', reason: 'internal-error', retryable: true });
     const s = new AmcpSession(transport, 'call_abc', deterministicDeps());
     await expect(s.audited(specFor('db.read'), vi.fn(async () => 'x'))).rejects.toBeInstanceOf(AmcpAbortedError);
     const aborted = transport.outcomes.filter((o) => o.outcome === 'aborted');
