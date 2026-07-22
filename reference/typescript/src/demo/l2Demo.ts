@@ -3,13 +3,14 @@ import { InProcessTransport } from '../transport/inProcess.js';
 import { AmcpSession, deterministicDeps } from '../tool/amcp.js';
 import { verifyLedger } from '../verify/verify.js';
 import { generateToolKey, KeyRegistry, type ToolKey } from '../l2/keys.js';
-import { Ed25519Signer, signEvent } from '../l2/signing.js';
+import { KeySigner, signEvent } from '../l2/signing.js';
 import { BoundaryObserver, reconcile } from '../l2/reconcile.js';
 import { SqlAnalystTool } from '../tool/sqlAnalystTool.js';
 import type { AuditEvent } from '../schema/event.js';
 import type { SealedRecord } from '../ledger/ledger.js';
 
 const L2_CAP = {
+  spec_version: 'auditable-mcp/0.1.1' as const,
   level: 'L2' as const,
   attempt: 'request' as const,
 };
@@ -23,7 +24,7 @@ function printLedger(records: readonly SealedRecord[]): void {
     const e = r.event;
     console.log(
       `  seq=${r.seq} ${e.action_type.padEnd(11)} ${e.outcome.padEnd(9)} ` +
-        `key=${e.key_id ?? '-'}#seq${e.sequence ?? '-'} sig=${(e.signature ?? '').slice(0, 10)}`,
+        `key=${e.key_id ?? '-'}#seq${e.signer_seq ?? '-'} sig=${(e.signature ?? '').slice(0, 10)}`,
     );
   }
 }
@@ -31,7 +32,7 @@ function printLedger(records: readonly SealedRecord[]): void {
 function attemptFor(key: ToolKey, seq: number, ref: string): AuditEvent {
   const base: AuditEvent = {
     id: `00000000-0000-4000-8000-${(seq + 1).toString(16).padStart(12, '0')}`,
-    spec_version: 'auditable-mcp/0.1',
+    spec_version: 'auditable-mcp/0.1.1',
     ts: '2026-07-16T00:00:00.000Z',
     call_id: 'call_adv',
     action_type: 'db.write',
@@ -41,7 +42,7 @@ function attemptFor(key: ToolKey, seq: number, ref: string): AuditEvent {
     outcome: 'attempted',
     action_context_hash: `sha256:${'0'.repeat(64)}`,
   };
-  return signEvent(base, key.keyId, seq, key.privateKey);
+  return signEvent(base, key.keyId, seq, key.alg, key.privateKey);
 }
 
 async function main(): Promise<void> {
@@ -53,11 +54,11 @@ async function main(): Promise<void> {
   // Onboarding: the host registers the tool's public key out-of-band (the trust anchor).
   const key = generateToolKey('sql-analyst-key');
   const registry = new KeyRegistry();
-  registry.register(key.keyId, key.publicKey);
+  registry.register(key.keyId, key.publicKey, key.alg);
 
   console.log('\n[1] Signed path - same tool code + a signer => L2 (portable escalation):');
   const host = new AuditHost('acme#2026-07-16', L2_CAP, registry);
-  const signer = new Ed25519Signer(key.keyId, key.privateKey);
+  const signer = new KeySigner(key.keyId, key.alg, key.privateKey);
   const session = new AmcpSession(new InProcessTransport(host), 'call_abc', deterministicDeps(), signer);
   const tool = new SqlAnalystTool(session);
   await tool.analyze('What were the high-value customer trends in the Tokyo area last month?');
@@ -79,7 +80,7 @@ async function main(): Promise<void> {
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
     const unsigned: AuditEvent = {
-      id: '00000000-0000-4000-8000-0000000000aa', spec_version: 'auditable-mcp/0.1', ts: '2026-07-16T00:00:00.000Z',
+      id: '00000000-0000-4000-8000-0000000000aa', spec_version: 'auditable-mcp/0.1.1', ts: '2026-07-16T00:00:00.000Z',
       call_id: 'call_adv', action_type: 'db.write', mutates: true, egress: false,
       target_resource: { kind: 'table', ref: 'notes' }, outcome: 'attempted', action_context_hash: `sha256:${'0'.repeat(64)}`,
     };

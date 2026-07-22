@@ -1,6 +1,6 @@
 """Verify non-tampering and completeness over a sealed ledger.
 
-Recomputes the hash chain from the record bytes, detects sequence gaps, checks the anchored
+Recomputes the hash chain from the record bytes, detects seq gaps, checks the anchored
 digest, and correlates attempts with outcomes. The chain is recomputed rather than read from
 the stored hashes, so any mutation of an event body propagates to the tail digest.
 """
@@ -49,13 +49,16 @@ def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = Non
         if error is not None:
             issues.append(VerifyIssue(seq=rec.seq, kind='schema-invalid', detail=error))
         if rec.seq != i:
-            kind = 'seq-gap' if rec.seq > i else 'seq-out-of-order'
-            issues.append(VerifyIssue(seq=rec.seq, kind=kind, detail=f'expected seq {i}, got {rec.seq}'))
+            # Tier-1 seq-gap (§7.6); the sub-kind (gap vs out-of-order) goes in detail.
+            sub = 'gap' if rec.seq > i else 'out-of-order'
+            issues.append(VerifyIssue(seq=rec.seq, kind='seq-gap', detail=f'{sub}: expected seq {i}, got {rec.seq}'))
         recomputed = compute_record_hash(rec.event, rec.seq, rec.host_ts, prev_recomputed)
         if rec.previous_hash != prev_recomputed:
             issues.append(
                 VerifyIssue(
-                    seq=rec.seq, kind='prev-hash-mismatch', detail='previous_hash does not link to previous record'
+                    seq=rec.seq,
+                    kind='record-hash-mismatch',
+                    detail='prev-hash: previous_hash does not link to previous record',
                 )
             )
         if rec.record_hash != recomputed:
@@ -68,7 +71,9 @@ def verify_ledger(records: list[SealedRecord], anchored_digest: str | None = Non
         elif rec.event['id'] not in attempted_ids:
             issues.append(
                 VerifyIssue(
-                    seq=rec.seq, kind='outcome-without-attempt', detail=f'outcome={outcome} id={rec.event["id"]}'
+                    seq=rec.seq,
+                    kind='orphaned-outcome',
+                    detail=f'never-accepted: outcome={outcome} id={rec.event["id"]}',
                 )
             )
         prev_recomputed = recomputed

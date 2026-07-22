@@ -3,7 +3,7 @@ import type { AuditCapability, NegotiationResult } from '../schema/capability.js
 import { DEFAULT_L1_CAPABILITY, negotiateCapability } from '../schema/capability.js';
 import { Ledger, type SealedRecord } from '../ledger/ledger.js';
 import { hasUnsafeNumber } from '../ledger/canonical.js';
-import type { AttemptResponse } from '../transport/transport.js';
+import type { AttemptResponse, RejectReason } from '../transport/transport.js';
 import { verifyEventSignature } from '../l2/signing.js';
 import type { KeyRegistry } from '../l2/keys.js';
 
@@ -11,19 +11,19 @@ import type { KeyRegistry } from '../l2/keys.js';
 // the tamper-evident ledger. Does not authorize domain actions (operator allowlist owns that);
 // rejects only malformed, forged, or replayed records so they never enter the chain.
 
+// Tier-1 codes the host emits (§7.6): reject/unavailable reasons logged when refusing a record,
+// and anomaly kinds flagged on accepted records. Finer cause (e.g. numeric-domain, id vs signer_seq
+// replay, orphan sub-kind) is carried as Tier-2 free text in `detail`.
 export interface IntegrityAnomaly {
   id: string;
   kind:
     | 'schema-invalid'
-    | 'numeric-domain'
-    | 'attempt-replay'
-    | 'outcome-without-attempt'
-    | 'outcome-after-reject'
+    | 'replay-detected'
     | 'l2-unsigned'
     | 'unknown-key'
     | 'signature-invalid'
-    | 'sequence-replay'
-    | 'sequence-gap';
+    | 'signer-seq-gap'
+    | 'orphaned-outcome';
   detail: string;
 }
 
@@ -60,42 +60,49 @@ export class AuditHost {
     return new Date(Date.UTC(2026, 6, 15, 0, 0, this.hostClock)).toISOString();
   }
 
-  // L2 (§7.4): verify signature over a registered key and per-tool sequence. Unsigned, forged,
-  // or replayed records are rejected. A forward sequence gap is flagged, not rejected: the
-  // suppressed event is unrecoverable. No-op under L1.
-  private checkL2(event: AuditEvent): { reject: false } | { reject: true; reason: string } {
+  // L2 (§7.4): verify signature over a registered key and per-key_id signer_seq. Unsigned, forged,
+  // or replayed records are rejected. A forward signer_seq gap is flagged (signer-seq-gap), not
+  // rejected: the suppressed event is unrecoverable. No-op under L1. The first signer_seq for a
+  // key_id (no prior tracked value) is the baseline, so it is accepted and never flagged as a gap.
+  private checkL2(event: AuditEvent): { reject: false } | { reject: true; reason: RejectReason } {
     if (this.capability.level !== 'L2') return { reject: false };
 
-    if (!event.signature || !event.key_id || event.sequence === undefined) {
-      this.anomalies.push({ id: event.id, kind: 'l2-unsigned', detail: 'L2 requires signature, key_id, sequence' });
+    if (!event.signature || !event.key_id || event.signer_seq === undefined) {
+      this.anomalies.push({ id: event.id, kind: 'l2-unsigned', detail: 'L2 requires signature, key_id, signer_seq' });
       return { reject: true, reason: 'l2-unsigned' };
     }
-    const publicKey = this.keyRegistry?.get(event.key_id);
-    if (!publicKey) {
+    const key = this.keyRegistry?.get(event.key_id);
+    if (!key) {
       this.anomalies.push({ id: event.id, kind: 'unknown-key', detail: `no registered key for ${event.key_id}` });
       return { reject: true, reason: 'unknown-key' };
     }
-    if (!verifyEventSignature(event, publicKey)) {
+    if (!verifyEventSignature(event, key)) {
       this.anomalies.push({ id: event.id, kind: 'signature-invalid', detail: 'signature does not verify (forged/altered)' });
       return { reject: true, reason: 'signature-invalid' };
     }
-    const last = this.lastSeqByKey.get(event.key_id) ?? -1;
-    if (event.sequence <= last) {
-      this.anomalies.push({ id: event.id, kind: 'sequence-replay', detail: `sequence ${event.sequence} <= last ${last}` });
-      return { reject: true, reason: 'sequence-replay' };
+    const last = this.lastSeqByKey.get(event.key_id);
+    if (last === undefined) {
+      // First observation for this key_id is the baseline (§7.4): accepted as-is, never a gap,
+      // because there is no prior value to compare against (a persisted or cross-partition counter
+      // may legitimately start above 0).
+      return { reject: false };
     }
-    if (event.sequence > last + 1) {
-      this.anomalies.push({ id: event.id, kind: 'sequence-gap', detail: `expected ${last + 1}, got ${event.sequence} (suppressed event)` });
+    if (event.signer_seq <= last) {
+      this.anomalies.push({ id: event.id, kind: 'replay-detected', detail: `signer_seq ${event.signer_seq} <= last ${last}` });
+      return { reject: true, reason: 'replay-detected' };
+    }
+    if (event.signer_seq > last + 1) {
+      this.anomalies.push({ id: event.id, kind: 'signer-seq-gap', detail: `expected ${last + 1}, got ${event.signer_seq} (suppressed event)` });
     }
     return { reject: false };
   }
 
-  // Advance the per-key sequence tracker; called only after a record is sealed (§7.4). The tracker
-  // follows the last accepted (sealed) sequence, not the last seen, so an unavailable/retryable
-  // attempt does not poison the sequence for a retry.
+  // Advance the per-key signer_seq tracker; called only after a record is sealed (§7.4). The tracker
+  // follows the last accepted (sealed) signer_seq, not the last seen, so an unavailable/retryable
+  // attempt does not poison the counter for a retry.
   private advanceSeq(event: AuditEvent): void {
-    if (event.key_id !== undefined && event.sequence !== undefined) {
-      this.lastSeqByKey.set(event.key_id, event.sequence);
+    if (event.key_id !== undefined && event.signer_seq !== undefined) {
+      this.lastSeqByKey.set(event.key_id, event.signer_seq);
     }
   }
 
@@ -108,13 +115,14 @@ export class AuditHost {
     }
     const event = parsed.data;
     if (event.outcome !== 'attempted') {
-      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'attempt must carry outcome=attempted' });
-      return { status: 'reject', reason: 'attempt-must-be-attempted' };
+      // Tier-1 schema-invalid; the Tier-2 specifics go in detail (§7.6).
+      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'attempt-must-be-attempted: attempt must carry outcome=attempted' });
+      return { status: 'reject', reason: 'schema-invalid' };
     }
     // Not canonicalizable (§8.1): reject gracefully instead of throwing at seal time.
     if (hasUnsafeNumber(event)) {
-      this.anomalies.push({ id: event.id, kind: 'numeric-domain', detail: 'numeric value not canonicalizable (§8.1)' });
-      return { status: 'reject', reason: 'numeric-domain' };
+      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'numeric-domain: numeric value not canonicalizable (§8.1)' });
+      return { status: 'reject', reason: 'schema-invalid' };
     }
     // L2: reject forged/unsigned/replayed records before sealing.
     const l2 = this.checkL2(event);
@@ -122,15 +130,15 @@ export class AuditHost {
       this.rejectedIds.add(event.id);
       return { status: 'reject', reason: l2.reason };
     }
-    // Persistence failure: fail closed (retryable).
+    // Persistence failure: fail closed (retryable), returned as internal-error (§7.6).
     if (this.unavailable) {
-      return { status: 'unavailable', reason: 'persistence-failure', retryable: true };
+      return { status: 'unavailable', reason: 'internal-error', retryable: true };
     }
     // Replayed attempt id: reject as duplicate.
     if (this.acceptedAttempts.has(event.id)) {
       this.rejectedIds.add(event.id);
-      this.anomalies.push({ id: event.id, kind: 'attempt-replay', detail: 'duplicate attempt id' });
-      return { status: 'reject', reason: 'attempt-replay' };
+      this.anomalies.push({ id: event.id, kind: 'replay-detected', detail: 'id-replay: duplicate attempt id' });
+      return { status: 'reject', reason: 'replay-detected' };
     }
     const sealed = this.ledger.append(event, this.nextHostTs());
     this.acceptedAttempts.add(event.id);
@@ -157,7 +165,19 @@ export class AuditHost {
     const event = parsed.data;
     // Not canonicalizable (§8.1): drop instead of throwing at seal time.
     if (hasUnsafeNumber(event)) {
-      this.anomalies.push({ id: event.id, kind: 'numeric-domain', detail: 'numeric value not canonicalizable (§8.1)' });
+      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'numeric-domain: numeric value not canonicalizable (§8.1)' });
+      return;
+    }
+    // §6: an `attempted` outcome on the audit/outcome channel is invalid; drop and flag it rather than
+    // sealing a second attempt record for the id (§7.1 uniqueness).
+    if (event.outcome === 'attempted') {
+      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'attempted outcome on the audit/outcome channel (§6)' });
+      return;
+    }
+    // An aborted outcome MUST carry a Tier-1 abort code (§7.2). Zod pins the value but not its
+    // presence; the emitted JSON Schema adds the conditional, and the host enforces it here too.
+    if (event.outcome === 'aborted' && event.reason === undefined) {
+      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'aborted-without-reason: an aborted outcome MUST carry a Tier-1 abort code (§7.2)' });
       return;
     }
     // §10.4: a fail-closed `aborted` outcome for a never-accepted or rejected attempt is the honest
@@ -175,9 +195,9 @@ export class AuditHost {
       return;
     }
     if (this.rejectedIds.has(event.id)) {
-      this.anomalies.push({ id: event.id, kind: 'outcome-after-reject', detail: `outcome=${event.outcome} for rejected id` });
+      this.anomalies.push({ id: event.id, kind: 'orphaned-outcome', detail: `after-reject: outcome=${event.outcome} for rejected id` });
     } else {
-      this.anomalies.push({ id: event.id, kind: 'outcome-without-attempt', detail: `outcome=${event.outcome} without accepted attempt` });
+      this.anomalies.push({ id: event.id, kind: 'orphaned-outcome', detail: `never-accepted: outcome=${event.outcome} without accepted attempt` });
     }
   }
 

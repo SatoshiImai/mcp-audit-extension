@@ -24,6 +24,10 @@ export const AuditOutcomeNotificationSchema = NotificationSchema.extend({
 });
 export type AuditOutcomeNotification = z.infer<typeof AuditOutcomeNotificationSchema>;
 
+// Tier-1 reject reason codes (§7.6). The wire reason is pinned to this closed set so a tool can
+// branch on it mechanically; finer cause is a host-local diagnostic, not carried on the wire.
+export const REJECT_REASONS = ['schema-invalid', 'replay-detected', 'signature-invalid', 'l2-unsigned', 'unknown-key'] as const;
+
 // audit/attempt result: accept (recorded) / reject (refused) / unavailable (infra).
 export const AuditAttemptResultSchema = z.discriminatedUnion('status', [
   z.strictObject({
@@ -33,7 +37,7 @@ export const AuditAttemptResultSchema = z.discriminatedUnion('status', [
     host_ts: z.iso.datetime(),
     previous_hash: z.string().regex(/^[0-9a-f]{64}$/),
   }),
-  z.strictObject({ status: z.literal('reject'), reason: z.string() }),
-  z.strictObject({ status: z.literal('unavailable'), reason: z.string(), retryable: z.literal(true) }),
+  z.strictObject({ status: z.literal('reject'), reason: z.enum(REJECT_REASONS) }),
+  z.strictObject({ status: z.literal('unavailable'), reason: z.literal('internal-error'), retryable: z.literal(true) }),
 ]);
 export type AuditAttemptResult = z.infer<typeof AuditAttemptResultSchema>;

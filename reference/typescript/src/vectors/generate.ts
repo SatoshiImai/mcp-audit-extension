@@ -4,7 +4,8 @@ import { SPEC_VECTORS_DIR } from '../paths.js';
 import { canonicalize, sha256Hex } from '../ledger/canonical.js';
 import { computeRecordHash, GENESIS_HASH } from '../ledger/ledger.js';
 import { runCleanScenario } from '../demo/scenario.js';
-import { CANONICALIZATION_CASES, EVENT_CASES } from './fixtures.js';
+import type { AuditEvent } from '../schema/event.js';
+import { CANONICALIZATION_CASES, ERROR_CASES, EVENT_CASES, SIGNED_CHAIN_EVENTS } from './fixtures.js';
 
 // Generate the committed golden vectors. Any independent implementation must reproduce
 // these byte-for-byte: canonical serialization, per-event hashes, and a full sealed chain
@@ -30,7 +31,26 @@ interface ChainVector {
   digest: string;
 }
 
-async function build(): Promise<{ canonicalization: CanonicalizationVector[]; events: EventVector[]; chain: ChainVector }> {
+// Seal a list of events into a chain with deterministic host_ts, computing record_hash over the
+// full event (including `signature` under Level 2, §8.2).
+function sealChain(events: AuditEvent[]): ChainVector {
+  let prev = GENESIS_HASH;
+  const records = events.map((event, i) => {
+    const host_ts = new Date(Date.UTC(2026, 6, 15, 0, 0, 20 + i)).toISOString();
+    const record_hash = computeRecordHash(event, i, host_ts, prev);
+    const rec = { event, seq: i, host_ts, previous_hash: prev, record_hash };
+    prev = record_hash;
+    return rec;
+  });
+  return { records, digest: prev };
+}
+
+async function build(): Promise<{
+  canonicalization: CanonicalizationVector[];
+  events: EventVector[];
+  chain: ChainVector;
+  chainSigned: ChainVector;
+}> {
   const canonicalization: CanonicalizationVector[] = CANONICALIZATION_CASES.map((c) => {
     const canonical = canonicalize(c.value);
     return { name: c.name, value: c.value, canonical, sha256: sha256Hex(canonical) };
@@ -62,18 +82,22 @@ async function build(): Promise<{ canonicalization: CanonicalizationVector[]; ev
   }
   if (prev !== chain.digest) throw new Error('chain digest self-check failed');
 
-  return { canonicalization, events, chain };
+  const chainSigned = sealChain(SIGNED_CHAIN_EVENTS);
+
+  return { canonicalization, events, chain, chainSigned };
 }
 
 async function main(): Promise<void> {
   const outDir = SPEC_VECTORS_DIR;
   mkdirSync(outDir, { recursive: true });
-  const { canonicalization, events, chain } = await build();
+  const { canonicalization, events, chain, chainSigned } = await build();
 
   const files: Array<[string, unknown]> = [
     ['canonicalization.json', canonicalization],
     ['events.json', events],
     ['chain.json', chain],
+    ['chain-signed.json', chainSigned],
+    ['error-cases.json', ERROR_CASES],
   ];
   for (const [file, data] of files) {
     const path = resolve(outDir, file);
