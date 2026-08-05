@@ -15,7 +15,7 @@ from auditable_mcp.canonical import hash_canonical
 from auditable_mcp.ledger import compute_record_hash
 from auditable_mcp.transport import AuditTransport
 
-SPEC_VERSION = 'auditable-mcp/0.1.1'
+SPEC_VERSION = 'auditable-mcp/0.2'
 _BASE_EPOCH_SECONDS = 1000
 
 T = TypeVar('T')
