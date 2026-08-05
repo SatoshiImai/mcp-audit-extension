@@ -12,7 +12,7 @@ def _attempt(n: int) -> dict:
     """Build a valid attempt event with a distinct id for sequence ``n`` scenarios."""
     return {
         'id': f'00000000-0000-4000-8000-{n:012x}',
-        'spec_version': 'auditable-mcp/0.1.1',
+        'spec_version': 'auditable-mcp/0.2',
         'ts': '2026-07-15T00:00:01.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.write',

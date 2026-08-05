@@ -1,31 +1,30 @@
-"""Example first-party MCP tool: a data-analysis agent.
+"""Example first-party MCP tool: a customer-analysis agent.
 
-The host passes a natural-language question (a host parameter); the tool's internal agent
-generates and runs a raw SQL query the host never sees. Exercises §4.3's two confidentiality
-choices on a single event: the tables touched are disclosed in cleartext for routine visibility,
-while the exact SQL -- which reveals schema and the query predicate -- is sealed as a commitment,
-recoverable later from the database's own statement log. The question is host-known (recoverable
-via call_id) and never echoed.
+The host passes a natural-language question; the tool's internal agent generates and runs a raw SQL
+query the host never sees, enriches the result through an external geocoding service, then caches
+it. The three internal operations span the (mutates, egress) axis and exercise both confidentiality
+choices of §4.3: the tables touched are disclosed in cleartext while the exact SQL is sealed as a
+commitment, recoverable later from the database's own statement log.
 """
 
 from auditable_mcp.amcp import AmcpSession
 
-ANALYTICS_DB = 'analytics-postgres'
-RESULT_TABLE = 'analysis_results'
+CUSTOMER_DB = 'customer-postgres'
+RESULT_TABLE = 'enriched_addresses'
+# External geocoding endpoint: the egress destination this tool self-attests and reconciliation
+# observes at the boundary (§7.5).
+GEOCODER = 'https://geo.example/v1/lookup'
 
 
 class SqlAnalystTool:
-    """A data-analysis agent that self-attests the SQL query it runs internally."""
+    """A data-analysis agent that self-attests the operations it runs internally."""
 
     def __init__(self, session: AmcpSession) -> None:
         """Bind the audit session."""
         self._session = session
 
     def analyze(self, question: str) -> dict:
-        """Answer a question by running an internally generated SQL query.
-
-        Runs a SELECT that discloses the tables touched and seals the exact SQL, then caches the
-        result inside the trust boundary.
+        """Answer a question: query the internal DB, enrich via an external geocoder, cache the result.
 
         Args:
             question: The host's natural-language question.
@@ -34,15 +33,27 @@ class SqlAnalystTool:
             A dict with the number of rows returned.
         """
         sql = _generate_sql(question)
+        # 1. Read customer rows (incl. postal codes) from the internal DB: no egress. Disclose the
+        #    tables touched; seal the exact SQL as a commitment (§4.3).
         row_count = self._session.audited(
             'db.query',
-            {'kind': 'database', 'ref': ANALYTICS_DB},
+            {'kind': 'database', 'ref': CUSTOMER_DB},
             lambda: 42,
             mutates=False,
-            egress=True,
-            disclose={'dialect': 'postgres', 'tables_accessed': ['users', 'payments']},
+            egress=False,
+            disclose={'dialect': 'postgres', 'tables_accessed': ['customers']},
             commit=sql,
         )
+        # 2. Enrich the postal codes into addresses via an external geocoding service: the egress.
+        self._session.audited(
+            'ext.geocode',
+            {'kind': 'endpoint', 'ref': GEOCODER},
+            lambda: None,
+            mutates=False,
+            egress=True,
+            disclose={'provider': 'geo.example'},
+        )
+        # 3. Persist the enriched rows to an internal table: a mutating write, no egress.
         self._session.audited(
             'db.write',
             {'kind': 'table', 'ref': RESULT_TABLE},
@@ -65,7 +76,4 @@ def _generate_sql(question: str) -> str:
         A fixed SQL query string.
     """
     del question
-    return (
-        'SELECT email, amount FROM users JOIN payments ON payments.user_id = users.id '
-        "WHERE users.city = 'Tokyo' AND payments.amount > 10000"
-    )
+    return "SELECT id, postal_code FROM customers WHERE city = 'Tokyo' AND ltv > 10000"

@@ -1,6 +1,25 @@
 # Changelog
 
-All notable changes to the Auditable MCP specification are documented here. The project uses a `MAJOR.MINOR.PATCH` scheme. While the version is below `1.0.0`, minor and patch revisions MAY introduce breaking changes, as is conventional for `0.x` drafts.
+All notable changes to the Auditable MCP specification are documented here. The project uses a `MAJOR.MINOR.PATCH` scheme. While the version is below `1.0.0`, minor and patch revisions may introduce breaking changes, as is conventional for `0.x` drafts.
+
+This changelog is informative. Normative force (the RFC 2119 keywords) lives only in the specification; the summaries below merely describe it.
+
+## v0.2 - 2026-07-25
+
+Redefines `egress` semantics and advances the wire `spec_version` to `auditable-mcp/0.2`. Driven by production dogfooding: a physical-network definition of `egress` marks nearly every operation in a zero-trust / cloud-native deployment as egress, destroying its value as a DLP signal.
+
+### Breaking changes
+
+- **`spec_version` advances `auditable-mcp/0.1.1` -> `auditable-mcp/0.2`.** The version string is part of the canonical event bytes, so all golden digests change; there is no on-the-wire compatibility window between draft versions. New digests: Level-1 sealed chain `242e6f5c...`, Level-2 signed chain `e04f3afb...`.
+
+### Changed (normative)
+
+- **§4.2 `egress` is redefined against a logical data-governance boundary, not physical network topology.** A tenant-governed system or SaaS platform (e.g., a corporate Google Workspace or Salesforce instance) is inside the boundary even when reached over an external HTTP request; `egress` is `true` only when tenant context leaves the organization's governance scope (a public search engine, a public or unmanaged third-party API). A tool sets `egress` from the DLP risk of exfiltration, not from the presence of network transmission.
+- **§7.5 governance-boundary reconciliation is re-based on the governance boundary.** A host that performs reconciliation derives its observations from a control that classifies destinations by governance scope - a Layer-7 control such as a CASB, DLP engine, or secure web gateway - rather than a raw L3/L4 network gateway, which cannot tell a call to a tenant-managed SaaS apart from an out-of-governance egress. `unreported-egress` (§7.6) fires on an observed out-of-governance egress with no correlated self-reported `egress: true` event. The concrete CASB/DLP integration remains outside protocol scope. §10.2 and §10.7 wording aligned to "out-of-governance egress".
+
+### Reference alignment
+
+- `spec/schema/audit-event.schema.json` pins `spec_version` to `auditable-mcp/0.2`; the TypeScript and Python reference implementations and `spec/vectors/*.json` are regenerated at v0.2. The reference demo models the v0.2 egress semantics - an internal `db.query` (no egress), an external `ext.geocode` enrichment (the egress), and an internal `db.write` - so the Level-1 chain vector reflects §4.2; the per-event fixtures in `events.json` keep their byte-coverage values, non-normative per §8.4. Both reference ports reproduce both digests.
 
 ## v0.1.1 - 2026-07-21
 

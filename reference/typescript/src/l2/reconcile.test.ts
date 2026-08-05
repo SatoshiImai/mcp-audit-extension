@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { AuditHost } from '../host/auditHost.js';
 import { InProcessTransport } from '../transport/inProcess.js';
 import { AmcpSession, deterministicDeps } from '../tool/amcp.js';
-import { SqlAnalystTool } from '../tool/sqlAnalystTool.js';
+import { GEOCODER, SqlAnalystTool } from '../tool/sqlAnalystTool.js';
 import { BoundaryObserver, reconcile } from './reconcile.js';
 
-// The tool's SQL query is the egress under audit: it mutates nothing, but the query leaves the
-// trust boundary to reach the database. Reconciliation compares what the tool self-reported
-// against what the boundary (a gateway) actually observed.
-const QUERY_DESTINATION = 'analytics-postgres';
+// The tool's external geocoding call is the egress under audit: it mutates nothing, but it sends
+// tenant data past the governance boundary to a third party. Reconciliation compares what the tool
+// self-reported against what the boundary (a gateway) actually observed.
+const EGRESS_DESTINATION = GEOCODER;
 const QUESTION = 'What were the high-value customer trends in the Tokyo area last month?';
 
 function newTool(host: AuditHost): SqlAnalystTool {
@@ -16,27 +16,27 @@ function newTool(host: AuditHost): SqlAnalystTool {
 }
 
 describe('reconciliation - boundary egress vs self-report', () => {
-  it('no anomaly when a self-reported query egress matches a boundary observation', async () => {
+  it('no anomaly when a self-reported egress matches a boundary observation', async () => {
     const host = new AuditHost('t#d');
     const boundary = new BoundaryObserver();
 
     await newTool(host).analyze(QUESTION); // tool self-reports the egress
-    boundary.observeEgress('call_abc', QUERY_DESTINATION); // gateway observes it
+    boundary.observeEgress('call_abc', EGRESS_DESTINATION); // gateway observes it
 
     expect(reconcile(host.records(), boundary.forCall('call_abc'), 'call_abc')).toHaveLength(0);
   });
 
-  it('detects suppression: a query the boundary saw but the tool never reported', async () => {
+  it('detects suppression: an egress the boundary saw but the tool never reported', async () => {
     const host = new AuditHost('t#d');
     const boundary = new BoundaryObserver();
 
-    // The gateway saw the query egress, but the tool emitted no audit event, which signatures
-    // and sequence gaps cannot catch.
-    boundary.observeEgress('call_abc', QUERY_DESTINATION);
+    // The gateway saw the egress, but the tool emitted no audit event, which signatures and
+    // sequence gaps cannot catch.
+    boundary.observeEgress('call_abc', EGRESS_DESTINATION);
 
     const anomalies = reconcile(host.records(), boundary.forCall('call_abc'), 'call_abc');
     expect(anomalies).toHaveLength(1);
-    expect(anomalies[0]).toMatchObject({ kind: 'unreported-egress', destination: QUERY_DESTINATION });
+    expect(anomalies[0]).toMatchObject({ kind: 'unreported-egress', destination: EGRESS_DESTINATION });
   });
 
   it('returns anomalies in a stable sorted order regardless of observation order (per-port determinism)', () => {

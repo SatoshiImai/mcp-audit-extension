@@ -6,7 +6,7 @@ import { SPEC_VERSION } from './event.js';
 // initialize phase (§6.1). spec_version carries the supported Auditable MCP version so a common
 // version is established before events (which carry spec_version) are exchanged.
 export const auditCapabilitySchema = z.strictObject({
-  spec_version: z.string(), // supported Auditable MCP version, e.g. auditable-mcp/0.1.1
+  spec_version: z.string(), // supported Auditable MCP version, e.g. auditable-mcp/0.2
   level: z.enum(['L1', 'L2']),
   attempt: z.literal('request'), // attempt is always a blocking request (fail-closed)
 });

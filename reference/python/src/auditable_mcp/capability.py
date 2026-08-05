@@ -6,7 +6,7 @@ declares it; both directions are exchanged during the MCP initialize phase (§6.
 
 from dataclasses import dataclass
 
-SPEC_VERSION = 'auditable-mcp/0.1.1'
+SPEC_VERSION = 'auditable-mcp/0.2'
 
 
 @dataclass(frozen=True)
@@ -17,7 +17,7 @@ class AuditCapability:
     before events (which carry spec_version) are exchanged (§6.1).
     """
 
-    spec_version: str = SPEC_VERSION  # supported version, e.g. auditable-mcp/0.1.1
+    spec_version: str = SPEC_VERSION  # supported version, e.g. auditable-mcp/0.2
     level: str = 'L1'  # 'L1' | 'L2'
     attempt: str = 'request'  # attempt is always a blocking request (fail-closed)
 

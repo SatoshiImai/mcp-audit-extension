@@ -4,7 +4,7 @@ import { z } from 'zod/v4';
 // (signer_seq/key_id/signature) are optional, so an L2 event also validates as an L1 event; an
 // unsigned L1 event is rejected by an L2 host (§7.4).
 
-export const SPEC_VERSION = 'auditable-mcp/0.1.1';
+export const SPEC_VERSION = 'auditable-mcp/0.2';
 
 // Tool-internal events emit only attempted/success/failed/aborted; denied/expired are
 // host tools/call-boundary outcomes.

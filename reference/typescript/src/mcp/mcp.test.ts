@@ -20,15 +20,23 @@ describe('Auditable MCP over MCP wire', () => {
 
       expect(r1.isError).toBeFalsy();
 
-      // Ledger captured tool-internal operations, not just the tools/call boundary: one db.query
-      // (the SELECT, which egressed to the DB) + one db.write, each attempted then success.
+      // Ledger captured tool-internal operations, not just the tools/call boundary: db.query,
+      // ext.geocode, db.write, each attempted then success.
       const events = host.records().map((r) => `${r.event.action_type}:${r.event.outcome}`);
-      expect(events).toEqual(['db.query:attempted', 'db.query:success', 'db.write:attempted', 'db.write:success']);
+      expect(events).toEqual([
+        'db.query:attempted',
+        'db.query:success',
+        'ext.geocode:attempted',
+        'ext.geocode:success',
+        'db.write:attempted',
+        'db.write:success',
+      ]);
 
-      // db.query mutates nothing yet egresses.
+      // db.query does not egress; ext.geocode does.
       const query = host.records()[0];
       expect(query?.event.mutates).toBe(false);
-      expect(query?.event.egress).toBe(true);
+      expect(query?.event.egress).toBe(false);
+      expect(host.records()[2]?.event.egress).toBe(true);
 
       expect(verifyLedger(host.records()).ok).toBe(true);
     } finally {

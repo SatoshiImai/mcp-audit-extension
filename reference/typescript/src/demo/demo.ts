@@ -40,7 +40,7 @@ async function main(): Promise<void> {
   const anchored = host.ledger.digest(); // Anchor taken once, out-of-band.
   console.log('\n[1] Clean run - sealed ledger (attempt + outcome per internal op):');
   printLedger(host.records());
-  console.log('      db.query: mut=0 egr=1 - a read-only SELECT still egresses to the DB.');
+  console.log('      ext.geocode: mut=0 egr=1 - the external lookup egresses; the internal db.query does not.');
   console.log('      Tables touched are disclosed; the exact SQL is sealed, not logged raw.');
   console.log('');
   printReport('verify', host.records(), anchored);
@@ -64,7 +64,7 @@ async function main(): Promise<void> {
   await tool4.analyze('What were the high-value customer trends in the Tokyo area last month?');
   const replay = {
     id: '00000000-0000-4000-8000-000000000001',
-    spec_version: 'auditable-mcp/0.1.1',
+    spec_version: 'auditable-mcp/0.2',
     ts: new Date(1001000).toISOString(),
     call_id: 'call_abc',
     action_type: 'db.write',

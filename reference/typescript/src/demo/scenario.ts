@@ -4,9 +4,9 @@ import { AmcpSession, deterministicDeps } from '../tool/amcp.js';
 import { SqlAnalystTool } from '../tool/sqlAnalystTool.js';
 
 // A reproducible L1 scenario shared by the demo, the tests, and the chain conformance vector.
-// One host call drives a data-analysis tool that runs a raw SQL query the host never sees, then
-// caches the result: two internal operations that span the (mutates, egress) axis and both
-// confidentiality choices of §4.3.
+// One host call drives a data-analysis tool that runs a raw SQL query the host never sees,
+// enriches the result via an external service, then caches it: three internal operations that
+// span the (mutates, egress) axis and both confidentiality choices of §4.3.
 export async function runCleanScenario(partition = 'acme#2026-07-15'): Promise<AuditHost> {
   const host = new AuditHost(partition);
   const transport = new InProcessTransport(host);

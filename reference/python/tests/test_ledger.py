@@ -10,7 +10,7 @@ def _event(event_id: str, outcome: str) -> dict:
     """Build a minimal valid event dict for ledger tests."""
     return {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.1.1',
+        'spec_version': 'auditable-mcp/0.2',
         'ts': '2026-07-15T00:00:00.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.read',
