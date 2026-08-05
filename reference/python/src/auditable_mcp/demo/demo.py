@@ -49,7 +49,7 @@ def main() -> None:
     anchored = host.ledger.digest()
     logger.info('\n[1] Clean run - sealed ledger (attempt + outcome per internal op):')
     _print_ledger(host.records())
-    logger.info('      db.query: mut=0 egr=1 - a read-only SELECT still egresses to the DB.')
+    logger.info('      ext.geocode: mut=0 egr=1 - the external lookup egresses; the internal db.query does not.')
     logger.info('      Tables touched are disclosed; the exact SQL is sealed, not logged raw.')
     logger.info('')
     _report('verify', host.records(), anchored)
@@ -71,7 +71,7 @@ def main() -> None:
     tool4.analyze('What were the high-value customer trends in the Tokyo area last month?')
     replay = {
         'id': '00000000-0000-4000-8000-000000000001',
-        'spec_version': 'auditable-mcp/0.1.1',
+        'spec_version': 'auditable-mcp/0.2',
         'ts': '1970-01-01T00:16:41.000Z',
         'call_id': 'call_abc',
         'action_type': 'db.write',

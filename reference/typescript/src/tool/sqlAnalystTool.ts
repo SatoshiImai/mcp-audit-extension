@@ -1,18 +1,20 @@
 import type { AmcpSession } from './amcp.js';
 
-// Example first-party MCP tool: a data-analysis agent. The host passes a natural-language question
-// (a host parameter); the tool's internal agent generates and runs a raw SQL query the host never
-// sees. Exercises §4.3's two confidentiality choices on a single event: the tables touched are
-// disclosed in cleartext for routine visibility, while the exact SQL - which reveals schema and
-// the query predicate - is sealed as a commitment, recoverable later from the database's own
-// statement log. The question is host-known (recoverable via call_id) and never echoed.
+// Example first-party MCP tool: a customer-analysis agent. The host passes a natural-language
+// question; the tool's internal agent generates and runs a raw SQL query the host never sees,
+// enriches the result through an external geocoding service, then caches it. The three internal
+// operations span the (mutates, egress) axis and exercise both confidentiality choices of §4.3:
+// the tables touched are disclosed in cleartext while the exact SQL is sealed as a commitment.
 
 export interface AnalysisResult {
   rowCount: number;
 }
 
-const ANALYTICS_DB = 'analytics-postgres';
-const RESULT_TABLE = 'analysis_results';
+const CUSTOMER_DB = 'customer-postgres';
+const RESULT_TABLE = 'enriched_addresses';
+// External geocoding endpoint: the egress destination this tool self-attests and reconciliation
+// observes at the boundary (§7.5).
+export const GEOCODER = 'https://geo.example/v1/lookup';
 
 export class SqlAnalystTool {
   constructor(private readonly session: AmcpSession) {}
@@ -21,22 +23,31 @@ export class SqlAnalystTool {
     // The internal agent turns the question into SQL. The host never sees this string.
     const sql = generateSql(question);
 
-    // 1. Run the SELECT. Disclose the tables touched (coarse, routine visibility) and seal the
-    //    exact SQL (forensic non-repudiation); an auditor can reconstruct the hash from the
-    //    database's statement log if full-statement logging is enabled.
+    // 1. Read customer rows (incl. postal codes) from the internal DB: no egress. Disclose the
+    //    tables touched (routine visibility); seal the exact SQL as a commitment (§4.3).
     const rowCount = await this.session.audited(
       {
         action_type: 'db.query',
-        target_resource: { kind: 'database', ref: ANALYTICS_DB },
-        effect: { mutates: false, egress: true },
-        disclose: { dialect: 'postgres', tables_accessed: ['users', 'payments'] },
+        target_resource: { kind: 'database', ref: CUSTOMER_DB },
+        effect: { mutates: false, egress: false },
+        disclose: { dialect: 'postgres', tables_accessed: ['customers'] },
         commit: sql,
       },
       async () => 42,
     );
 
-    // 2. Persist the result set locally: a state change inside the trust boundary, with no
-    //    internal context worth attesting beyond the target.
+    // 2. Enrich the postal codes into addresses via an external geocoding service: the egress.
+    await this.session.audited(
+      {
+        action_type: 'ext.geocode',
+        target_resource: { kind: 'endpoint', ref: GEOCODER },
+        effect: { mutates: false, egress: true },
+        disclose: { provider: 'geo.example' },
+      },
+      async () => undefined,
+    );
+
+    // 3. Persist the enriched rows to an internal table: a mutating write, no egress.
     await this.session.audited(
       {
         action_type: 'db.write',
@@ -53,5 +64,5 @@ export class SqlAnalystTool {
 // Stand-in for the internal NL-to-SQL generation the host cannot observe. Deterministic so the
 // demo and vectors are reproducible.
 function generateSql(_question: string): string {
-  return "SELECT email, amount FROM users JOIN payments ON payments.user_id = users.id WHERE users.city = 'Tokyo' AND payments.amount > 10000";
+  return "SELECT id, postal_code FROM customers WHERE city = 'Tokyo' AND ltv > 10000";
 }

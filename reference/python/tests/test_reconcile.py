@@ -1,15 +1,15 @@
 """Tests for reconciliation: boundary egress vs self-report.
 
-The tool's SQL query is the egress under audit: it mutates nothing, but the query leaves the
-trust boundary to reach the database. Reconciliation compares what the tool self-reported
-against what the boundary (a gateway) actually observed.
+The tool's external geocoding call is the egress under audit: it mutates nothing, but it sends
+tenant data past the governance boundary to a third party. Reconciliation compares what the tool
+self-reported against what the boundary (a gateway) actually observed.
 """
 
 from auditable_mcp.amcp import AmcpSession, DeterministicDeps
 from auditable_mcp.host import AuditHost
 from auditable_mcp.in_process import InProcessTransport
 from auditable_mcp.l2.reconcile import BoundaryObserver, reconcile
-from auditable_mcp.sql_analyst_tool import ANALYTICS_DB, SqlAnalystTool
+from auditable_mcp.sql_analyst_tool import GEOCODER, SqlAnalystTool
 
 QUESTION = 'What were the high-value customer trends in the Tokyo area last month?'
 
@@ -20,25 +20,25 @@ def _new_tool(host: AuditHost) -> SqlAnalystTool:
 
 
 def test_no_anomaly_when_matched() -> None:
-    """A self-reported query egress matching a boundary observation raises no anomaly."""
+    """A self-reported egress matching a boundary observation raises no anomaly."""
     host = AuditHost('t#d')
     boundary = BoundaryObserver()
     _new_tool(host).analyze(QUESTION)
-    boundary.observe_egress('call_abc', ANALYTICS_DB)
+    boundary.observe_egress('call_abc', GEOCODER)
     assert reconcile(host.records(), boundary.for_call('call_abc'), 'call_abc') == []
 
 
 def test_detects_suppression() -> None:
-    """A query the boundary saw but the tool never reported is detected as suppression."""
+    """An egress the boundary saw but the tool never reported is detected as suppression."""
     host = AuditHost('t#d')
     boundary = BoundaryObserver()
-    # The query egressed and the gateway saw it, but the tool emitted no audit event. This is
+    # The tool called out and the gateway saw it, but the tool emitted no audit event. This is
     # the suppression that signatures and sequence gaps cannot catch.
-    boundary.observe_egress('call_abc', ANALYTICS_DB)
+    boundary.observe_egress('call_abc', GEOCODER)
     anomalies = reconcile(host.records(), boundary.for_call('call_abc'), 'call_abc')
     assert len(anomalies) == 1
     assert anomalies[0].kind == 'unreported-egress'
-    assert anomalies[0].destination == ANALYTICS_DB
+    assert anomalies[0].destination == GEOCODER
 
 
 def test_anomalies_sorted_by_destination() -> None:
@@ -62,11 +62,13 @@ def test_self_report_without_observation_is_not_flagged() -> None:
     assert reconcile(host.records(), boundary.for_call('call_abc'), 'call_abc') == []
 
 
-def test_query_is_read_only_yet_egresses() -> None:
-    """The point of the example: a SELECT mutates nothing but the query still leaves."""
+def test_external_call_is_read_only_yet_egresses() -> None:
+    """The external geocoding lookup mutates nothing but still egresses; the internal query does not."""
     host = AuditHost('t#d')
     _new_tool(host).analyze(QUESTION)
-    event = host.records()[0].event
-    assert event['action_type'] == 'db.query'
-    assert event['mutates'] is False
-    assert event['egress'] is True
+    events = [record.event for record in host.records()]
+    geocode = next(event for event in events if event['action_type'] == 'ext.geocode')
+    assert geocode['mutates'] is False
+    assert geocode['egress'] is True
+    query = next(event for event in events if event['action_type'] == 'db.query')
+    assert query['egress'] is False

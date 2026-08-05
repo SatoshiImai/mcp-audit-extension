@@ -1,8 +1,8 @@
 """A reproducible clean L1 scenario shared by the demo, the tests, and the chain conformance vector.
 
-One host call drives a data-analysis tool that runs a raw SQL query the host never sees, then
-caches the result: two internal operations spanning the (mutates, egress) axis and both
-confidentiality choices of §4.3.
+One host call drives a data-analysis tool that runs a raw SQL query the host never sees, enriches
+the result via an external service, then caches it: three internal operations spanning the
+(mutates, egress) axis and both confidentiality choices of §4.3.
 """
 
 from auditable_mcp.amcp import AmcpSession, DeterministicDeps
