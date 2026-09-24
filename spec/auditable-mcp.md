@@ -47,11 +47,13 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 - **Tool** - A specific capability exposed by an MCP Server, whose internal operations are subject to audit via this specification.
 - **Host** - The party that receives audit events and anchors them into the ledger. Ordinarily the MCP client or orchestrator; in the degraded posture (§6.2) the tool provides one for itself, which is what the witness axis (§5.2) distinguishes.
+- **Verifier** - A party that reads a sealed ledger, recomputes its chain, and reports anomalies (§7.6, §11.4). It need not have taken part in the exchange that produced the records, and may be the host, the tool, or an independent auditor.
 - **Event** - One audit record describing one internal operation (§4).
 - **Ledger** - The host's append-only, hash-chained, tamper-evident store of attested events.
 - **Boundary** - The standard `tools/call` interface which the host can directly observe.
 - **Governance boundary** - The logical data-governance boundary defined in §4.2: the perimeter of the organization's own data governance, not a physical network boundary. Distinct from the observable call **Boundary** above.
 - **Self-attestation** - A tool's voluntary reporting of its internal domain actions to the host (cryptographically verifiable under Level 2).
+- **Witness signature** - A host's signature over the host-assigned fields of a record it sealed, made with a key an out-of-band registry binds to that host (§5.2, §7.1). Distinct from a tool's Level-2 event `signature`, which covers the event the tool emitted.
 - **Domain Action** - An execution step performed internally by a tool (e.g., executing a SQL query, invoking an external API) that is opaque to the host at the boundary.
 - **Partition** - A logical isolation boundary defined by the host (e.g., per tenant or session) within which the ledger's hash chain, `seq`, `signer_seq` tracking, and anomaly set are scoped (§10.5). It is a host-side ledger concern; the tool is unaware of it.
 
