@@ -150,6 +150,8 @@ The `signature` field MUST be the standard base64 encoding (with padding, [RFC-4
 
 Auditable MCP requires tool-to-host communication while a `tools/call` is being processed. It adopts the established MCP elicitation pattern for this exchange. However, the audit exchange itself is deterministic and does not employ human-in-the-loop semantics: the host's audit subsystem processes requests automatically, and execution is not suspended awaiting human input. (Human-in-the-loop consent MAY occur at capability negotiation (§6.1), never within the per-event audit exchange.)
 
+**Scope of these obligations.** This section defines the exchange for an *audit-negotiated* session - one in which both parties declared this extension at `initialize` and the capability comparison succeeded (§6.1). In an unnegotiated session the tool sends no audit message at all and serves the call as an ordinary MCP tool; §6.2 is normative for that case. In particular, the fail-closed rules below MUST NOT be triggered by a peer that never declared the extension.
+
 The protocol defines two messages:
 
 - **`audit/attempt`:** A tool-to-host JSON-RPC request sent immediately before an internal operation, carrying an event with the `outcome` set to `attempted`. This is strictly an audit recording request, not an authorization request. The tool MUST await the response and MUST NOT perform the operation unless the response is `accept`. Bounding this wait (e.g., a transport-level timeout that fails closed) is a transport/SDK responsibility. The host rejects an attempt only when ledger integrity cannot be guaranteed (e.g., invalid signatures or sequence violations). If the host suffers a persistence failure, it replies with an `unavailable` status.
@@ -169,7 +171,15 @@ Consequently, states such as `denied` (Boundary-level allowlist rejection) and `
 
 ### 6.1 Capability negotiation
 
-Auditable MCP integrates with the standard MCP `initialize` phase, where the host and the tool exchange capabilities bidirectionally. Each party declares the capability object at the JSON path `capabilities.experimental["auditable-mcp"]` of its MCP `initialize` payload (the `experimental` namespace applies until this extension is standardized). The host declares the audit capability it requires; the tool declares the audit capability it supports. Both use the [`schema/audit-capability.schema.json`](schema/audit-capability.schema.json) object. (The reference implementations exercise the negotiation logic and the per-event wire, not this `initialize` handshake, which is a thin MCP-transport binding; see the reference READMEs.)
+Auditable MCP is an MCP extension in the sense of [SEP-2133], and it integrates with the standard MCP `initialize` phase where the host and the tool exchange capabilities bidirectionally. Each party declares this extension under the `extensions` member of its capabilities - `ClientCapabilities` for the host, `ServerCapabilities` for the tool - keyed by the extension identifier:
+
+```
+com.timberlandchapel/auditable-mcp
+```
+
+The value at that key is the capability object, serving as this extension's [SEP-2133] settings object. The host declares the audit capability it requires; the tool declares the audit capability it supports. Both use the [`schema/audit-capability.schema.json`](schema/audit-capability.schema.json) object. (The reference implementations exercise the negotiation logic and the per-event wire, not this `initialize` handshake, which is a thin MCP-transport binding; see the reference READMEs.)
+
+**Identifier and version.** The identifier names the extension; `spec_version` names the wire version. [SEP-2133] requires a breaking change to take a new identifier, so that no existing compliant implementation fails or behaves incorrectly. Below 1.0 this specification discharges that obligation through `spec_version` instead: the field is REQUIRED in the settings object and is compared during negotiation, so a peer built against an older version does not misbehave - it fails to negotiate, visibly, before any audit message is exchanged (§6.2). A new identifier will be minted for a breaking change at or after 1.0.
 
 The host enforces its own required `level` at runtime (§7) regardless of what the tool offers: when the host requires Level 1 and the tool offers Level 2, the host still validates only at Level 1 (it does not demand signatures); when the host requires Level 2, the host validates every event at Level 2. The offered level only decides whether the connection is admitted (below).
 
@@ -181,9 +191,30 @@ The capability object declares the operational parameters of the audit subsystem
 | `level`        | string | REQUIRED | MUST be `"L1"` or `"L2"`. The negotiated assurance level.                                                                                                                                                        |
 | `attempt`      | string | REQUIRED | MUST be `"request"`. `audit/attempt` is a blocking, fail-closed request. A single permitted value in this version; it is a forward-compatibility placeholder reserving the field for a future non-blocking mode. |
 
-When either participant's declared `spec_version` is not mutually supported, or a tool's declared `level` does not meet the host's requirement (e.g., the host requires Level 2 but the tool supports only Level 1), resolving the mismatch is an orchestrator or SDK implementation responsibility. The orchestrator MAY terminate the connection, or it MAY seek human-in-the-loop consent to admit the tool at a lower assurance level and record that decision in its allowlist.
+When either participant's declared `spec_version` is not mutually supported, or a tool's declared `level` does not meet the host's requirement (e.g., the host requires Level 2 but the tool supports only Level 1), resolving the mismatch is an orchestrator or SDK implementation responsibility. The orchestrator MAY terminate the connection, or it MAY seek human-in-the-loop consent to admit the tool at a lower assurance level and record that decision in its allowlist. Whatever the orchestrator decides, the session is unnegotiated until a comparison succeeds, so §6.2 governs the tool: it sends no audit message in the meantime.
 
 A tool might falsely declare a higher capability than it possesses. The protocol does not verify a declaration's truthfulness during negotiation. Instead, the host enforces its required level at runtime (§7). If a tool fails to emit events compliant with the enforced level - for example, omitting a signature under Level 2 - the host's runtime validation rejects those events. Consequently, ledger integrity holds irrespective of the initial declaration.
+
+### 6.2 Graceful degradation
+
+[SEP-2133] requires that where one party supports an extension and the other does not, the supporting party either reverts to core protocol behavior or, for a mandatory extension, refuses the connection, and that an extension document its expected fallback. This section is that document.
+
+A session is **audit-negotiated** when both parties declared the extension identifier (§6.1) at `initialize` and the resulting capability comparison succeeded. Every other session is **unnegotiated**: the peer declared no `extensions` member, or declared other extensions but not this one, or declared it with a `spec_version` or `level` that does not fit.
+
+**In an unnegotiated session a tool MUST NOT send `audit/attempt` or `audit/outcome`.** A host that did not declare this extension has no audit subsystem to receive them and answers a JSON-RPC `error` (method not found), which §6 requires the tool to read as a failure to record. A tool that sends regardless therefore fails closed against a peer that has done nothing wrong, and is unusable with ordinary MCP hosts. The obligation rests on the tool because only the tool knows whether the exchange was negotiated.
+
+**A tool MUST serve an unnegotiated session as an ordinary MCP tool.** Its `tools/list` and `tools/call` behavior, and the content of its results, MUST NOT differ from a build without this extension. Auditable MCP adds to what a tool reports about itself; it never changes what the tool does.
+
+**Postures.** How a tool spends an audit obligation it can no longer discharge against the host is an operator configuration, established out-of-band and not negotiated on the wire. Two postures are admissible:
+
+| Posture                              | On an unnegotiated session                                                                                                | When to choose it                                                                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Degraded** (RECOMMENDED default)   | Serve the call, and record the internal operations into an audit host the tool provides for itself, applying §7 unchanged. | The default. The tool stays usable by every MCP host, and its interior is still recorded.                                                     |
+| **Mandatory**                        | Refuse to serve, as [SEP-2133] permits for a mandatory extension.                                                         | Deployments where a record the host never saw has no value - for example where the operator's obligation is discharged only by the host's ledger. |
+
+A third posture - serving the call while recording nothing, and reporting nothing about the omission - is NOT conformant. It reinstates exactly the opaque interior this specification exists to remove (§1), and does so invisibly.
+
+**The degraded posture MUST NOT claim what it did not do.** A tool acting as its own host issues and records the same chain, so that chain carries no independent confirmation of any record in it; §10.2 governs what such a chain does and does not establish. A verifier MUST distinguish this case from a host-recorded chain by the evidence present in the records, never by a flag that a self-hosting tool could set for itself.
 
 ## 7. Host behavior and tool obligations
 
@@ -437,7 +468,7 @@ An implementation (Host or Tool) is considered conformant to the Auditable MCP s
 
 A conformant Host MUST:
 
-- **Capability Enforcement:** Publish its required audit capability and enforce that level at runtime (§7.1), rejecting events that do not meet the mandated level.
+- **Capability Enforcement:** Publish its required audit capability under the `extensions` member of its `ClientCapabilities`, keyed by the extension identifier (§6.1), and enforce that level at runtime (§7.1), rejecting events that do not meet the mandated level.
 - **Verifiable Accept:** Return `seq`, `host_ts`, and `previous_hash` alongside `record_hash` in the `accept` response (§7.1).
 - **Ledger Validation:** Perform the mandatory schema, numeric canonicalization-domain (§8.1), and attempt `id`-uniqueness (both levels), plus `signer_seq` and signature (Level 2), validations before sealing (§7.1); fail closed on integrity violations.
 - **Receive-boundary Numeric Enforcement:** Reject a number outside the canonicalization domain at ingestion, before a lossy native parse can corrupt it (§8.1).
@@ -453,6 +484,7 @@ A conformant Tool MUST:
 - **Polluted Stop:** Under Level 2, recompute the `record_hash` upon receiving an `accept` response using the host-provided `seq`, `host_ts`, and `previous_hash`, and abort execution if the hash does not match (§7.2). Under Level 1, this verification is OPTIONAL.
 - **Signature Encoding (Level 2):** Sign with the algorithm bound to the `key_id` by the registry and encode the detached `signature` as standard base64 (§5.1).
 - **Abort Signaling:** Upon a `reject`, `unavailable`, or Polluted-Stop hash mismatch, emit an `outcome: "aborted"` event with the appropriate Tier-1 `reason` (§7.6) before completely halting the operation.
+- **Degradation:** In an unnegotiated session (§6.2), send no `audit/attempt` or `audit/outcome`, serve `tools/call` exactly as a build without this extension would, and take one of the two admissible postures - degraded or mandatory. Serving a call while silently recording nothing is NOT conformant.
 
 ## 12. Extensibility and Registries
 
@@ -504,6 +536,7 @@ For example, `example.com/rows-exceeded`. Because every Tier-2 code contains a `
 
 - **[RFC-8126]** Cotton, M., Leiba, B., and T. Narten, "Guidelines for Writing an IANA Considerations Section in RFCs", BCP 26, RFC 8126, June 2017.
 - **[W3C-Trace-Context]** W3C, "Trace Context", W3C Recommendation.
+- **[SEP-2133]** Model Context Protocol, "Extensions framework for MCP", SEP-2133 (merged 2026-01-26); the `extensions` capability member it introduces ships in MCP protocol version `2026-07-28`.
 - **[SEP-3004]** Model Context Protocol, "Tamper-Evident Audit Record Contract", MCP Issue #3004.
 - **[OTel-GenAI]** OpenTelemetry, "Semantic Conventions for Generative AI Systems".
 - **[EU-AI-Act]** Regulation (EU) 2024/1689 (Artificial Intelligence Act), Article 12: Record-keeping.
