@@ -366,6 +366,7 @@ Anomaly kinds (a verifier reads these from a possibly foreign ledger):
 | `orphaned-outcome`     | A `success` or `failed` outcome references no accepted attempt - never accepted, or after its attempt was rejected (§7.2).                                                                                   |
 | `unreported-egress`    | Governance-boundary reconciliation saw an out-of-governance egress with no correlated self-reported event (§7.5, §10.2).                                                                                     |
 | `host-signature-invalid` | A sealed record carries a `host_signature` that fails verification against the registered host key (§5.2). The absence of a signature is NOT an anomaly - it is the `self` witness state.                     |
+| `principal-mismatch`   | A sealed record's bound identity does not match the principal its partition is expected to hold, or it carries no binding where the deployment requires one (§10.10).                                        |
 
 The Tier-1 set is a closure: every reject, unavailable, abort, and anomaly condition this specification defines maps to exactly one Tier-1 code, so an implementation always has a safe, interoperable code to emit. **Every code-valued field on the wire or in the ledger is pinned to Tier-1.** Specifically: the Attempt Response `reason` is pinned by its schema to the Tier-1 reject codes plus `internal-error` for `unavailable` (`schema/audit-attempt-response.schema.json`); the sealed outcome-event `reason` is pinned by its schema to the Tier-1 abort codes (§7.2, `schema/audit-event.schema.json`); and every anomaly `kind` a conformant verifier reports is a Tier-1 anomaly code. None carries an additional free-form field (the wire schemas are `additionalProperties: false`).
 
@@ -496,6 +497,21 @@ Level 2 roots trust in the out-of-band key registry (§5.1). Key rotation and re
 - **Revocation.** Records sealed with a key while it was valid remain valid evidence: the signature and the hash chain still prove authorship and integrity at seal time, and the append-only ledger is not rewritten on revocation. Revocation is forward-looking - after a `key_id` is revoked in the registry, the host MUST reject subsequent events bearing it as `unknown-key` (§7.4). Whether events sealed near the compromise window are trustworthy is a governance judgment made against the anchored digests (§8.3) and the revocation timestamp, not a protocol determination; the protocol preserves the evidence, it does not adjudicate it.
 
 Because the ledger is a detective control (§2), neither rotation nor revocation retroactively rewrites or re-flags sealed records; both are reconciled out-of-band against the registry's own history.
+
+### 10.10 Identity binding in shared storage
+
+The event (§4) carries no field naming the governed identity an operation is attributed to. A partition (§3, §10.5) is a host-side concept the tool is unaware of, and it is not part of the §8.2 preimage, so partition membership is a property of where a record is stored, not of the record's own bytes. A chain therefore proves internal consistency and authorship; by itself it does not prove whose chain it is.
+
+That is sound where one deployment holds one principal's ledger. It is not sound where records for several principals share a store: a record sealed under one principal's partition stays internally consistent when moved into another's, because nothing in its hashed bytes contradicts the new location. A transplant of this kind is out of reach of the chain alone.
+
+A deployment that stores records for more than one principal in a shared medium MUST bind identity by one of the following, and a verifier MUST check whichever was chosen:
+
+1. **Wrap in SEP-3004.** Seal each Auditable MCP record inside a SEP-3004 boundary record, whose protected core binds `principal_id` in the hashed bytes [SEP-3004], and check that `principal_id` against the principal the partition is expected to hold.
+2. **Bind inside the sealed record.** Carry the host-assigned identity in the record as sealed, so that it falls inside the record hash, and check it against the same expectation.
+
+Either way, the expectation is supplied out-of-band. It is an input to verification, never a value read from the artifact under verification - a transplanted record carries its own identity with it, so an artifact that supplies both sides of the comparison proves nothing. A record whose bound identity does not match the expectation, or which carries no binding where the deployment requires one, is flagged `principal-mismatch` (§7.6). The absent case fails closed: an unbound record cannot be shown to belong where it was found.
+
+A single-principal deployment needs neither construction, and this specification does not add an identity field to §4 for it. Identity belongs to the layer that owns the storage boundary, and an optional, unbound field in the event would let a conformant implementation look bound while binding nothing.
 
 ## 11. Conformance
 
