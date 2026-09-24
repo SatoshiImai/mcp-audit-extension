@@ -20,11 +20,14 @@ Makes the extension real on the MCP wire and separates who recorded a chain from
 - **§5.2 the witness axis, orthogonal to the conformance level.** The level says how strongly a tool's attestation resists forgery; the witness says who sealed it. A witnessing host signs the host-assigned fields an `accept` already returns - `seq`, `host_ts`, `previous_hash`, `record_hash` - and persists `host_signature` and `host_key_id` with the sealed record (§7.1). The artifact is deliberately not called a *Receipt*: [SCITT] gives that word to one whose profiles must support inclusion proofs, which this signature is not. The witness is established **per record, by evidence**: a self-hosting tool cannot manufacture the `host` state, because it holds no key the verifier's registry binds to a host. Absence of a signature is a state, not an anomaly.
 - **§10.10 identity binding in shared storage.** A chain proves authorship and internal consistency, never whose chain it is, so a deployment holding records for several principals MUST either wrap each record in a SEP-3004 boundary record whose core binds `principal_id`, or carry the host-assigned identity inside the sealed record - and a verifier MUST check it against an expectation supplied out-of-band. A missing binding fails closed. No identity field is added to §4.
 - **Tier-1 vocabulary** (§7.6): abort reasons `host-unwitnessed` and `host-signature-invalid`; anomaly kinds `host-signature-invalid` and `principal-mismatch`.
+- **§11.4 Verifier Conformance.** The specification places requirements on a verifier - chain recomputation, witness determination, identity matching, and the Tier-1 anomaly vocabulary - and §11 now lists that role alongside Host and Tool.
+- **§6.2 operator visibility (SHOULD).** A tool in the degraded posture makes that state observable to its operator. Alerting and the response to an audit failure stay with the organization ([NIST-SP-800-53] AU-5); the two postures are that control's "alternate audit logging capability" and its shutdown, respectively.
+- **§9 positions this extension against SCITT.** A witness signature attests that a named host sealed a record at a stated position; it is not a proof of inclusion in a published verifiable data structure, and a deployment wanting that anchors its tail digest (§8.3).
 
 ### Changed (normative)
 
 - **§6** scopes the fail-closed obligations to an audit-negotiated session; a peer that never declared the extension MUST NOT trigger them. **§7.3** lists a missing witness signature among the halt conditions.
-- **§6.1** states the identifier/version split: the identifier names the extension, `spec_version` names the wire version. Below 1.0 the [SEP-2133] breaking-change rule is discharged through `spec_version`, which is REQUIRED in the settings object and compared at negotiation, so an older peer fails to negotiate visibly rather than misbehaving. A new identifier will be minted at or after 1.0.
+- **§6.1** also states the negotiation rule for the witness axis, whose polarity is reversed: on `level` the tool produces and the host requires, on `witness` the host produces and the tool requires, so a host declaring `self` fails the comparison against a tool requiring `host` at `initialize` rather than aborting every call at runtime. **§6.1** states the identifier/version split: the identifier names the extension, `spec_version` names the wire version. Below 1.0 the [SEP-2133] breaking-change rule is discharged through `spec_version`, which is REQUIRED in the settings object and compared at negotiation, so an older peer fails to negotiate visibly rather than misbehaving. A new identifier will be minted at or after 1.0.
 - **§11.2** adds Witness Signing; **§11.3** adds Witness Enforcement and Degradation. **§12.1** binds a host's witness-signing key under the same algorithm registry shape as a tool's.
 
 ### Backward compatibility
@@ -34,7 +37,9 @@ Makes the extension real on the MCP wire and separates who recorded a chain from
 
 ### Reference alignment
 
-- `spec/schema/*.json` and `spec/vectors/*.json` are regenerated at v0.3; both chain vectors were reproduced byte-for-byte at v0.2 before regeneration, and the v0.3 output was recomputed independently from the §8.2 preimage. The TypeScript and Python reference implementations under `reference/` are **not yet aligned to v0.3**.
+- `spec/schema/*.json` and `spec/vectors/*.json` are regenerated at v0.3; both chain vectors were reproduced byte-for-byte at v0.2 before regeneration, and the v0.3 output was recomputed independently from the §8.2 preimage.
+- **New vectors cover what v0.3 adds:** `chain-witnessed.json` (the same chain as `chain.json` plus `host_signature`, `host_key_id`, and the witness-signature preimage, pinned to the same `record_hash` values and the same digest), and two `events.json` entries for the new abort reasons. Folding the witness signature into the §8.2 preimage moves the digest, so the vector fails if an implementation gets that wrong.
+- **Normative references:** [SEP-2133] and [SEP-3004] move from Informative to Normative, since §6.1 and §10.10 place requirements on them. [SCITT] and [NIST-SP-800-53] are added as informative. The TypeScript and Python reference implementations under `reference/` are **not yet aligned to v0.3**.
 
 ## v0.2 - 2026-07-25
 

@@ -109,5 +109,45 @@
     },
     "canonical": "{\"action_type\":\"db.write\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000005\",\"mutates\":true,\"outcome\":\"aborted\",\"reason\":\"host-rejected\",\"spec_version\":\"auditable-mcp/0.3\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:05.000Z\"}",
     "sha256": "99880ff10a8b3a45898fc6f8302f433e6747f2abd83bc17fab7d1b14ac32c8c6"
+  },
+  {
+    "name": "aborted-outcome-host-unwitnessed",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "spec_version": "auditable-mcp/0.3",
+      "ts": "2026-07-15T00:00:06.000Z",
+      "call_id": "call_abc",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "aborted",
+      "reason": "host-unwitnessed"
+    },
+    "canonical": "{\"action_type\":\"db.write\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000006\",\"mutates\":true,\"outcome\":\"aborted\",\"reason\":\"host-unwitnessed\",\"spec_version\":\"auditable-mcp/0.3\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:06.000Z\"}",
+    "sha256": "588ea30931ce5de0c7b830c69f9fd17de5e10383dacf0846e16000a1b910b1d2"
+  },
+  {
+    "name": "aborted-outcome-host-signature-invalid",
+    "event": {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "spec_version": "auditable-mcp/0.3",
+      "ts": "2026-07-15T00:00:07.000Z",
+      "call_id": "call_abc",
+      "action_type": "db.write",
+      "mutates": true,
+      "egress": false,
+      "target_resource": {
+        "kind": "table",
+        "ref": "customers"
+      },
+      "outcome": "aborted",
+      "reason": "host-signature-invalid"
+    },
+    "canonical": "{\"action_type\":\"db.write\",\"call_id\":\"call_abc\",\"egress\":false,\"id\":\"00000000-0000-4000-8000-000000000007\",\"mutates\":true,\"outcome\":\"aborted\",\"reason\":\"host-signature-invalid\",\"spec_version\":\"auditable-mcp/0.3\",\"target_resource\":{\"kind\":\"table\",\"ref\":\"customers\"},\"ts\":\"2026-07-15T00:00:07.000Z\"}",
+    "sha256": "b10d3af85687849d1ae749e15de2d0449199b9bc809f44bf53e3f90c06d0c242"
   }
 ]
