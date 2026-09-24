@@ -1,11 +1,11 @@
 # Auditable MCP
 
 - **Status:** Draft proposal
-- **Version:** `auditable-mcp/0.2`
+- **Version:** `auditable-mcp/0.3`
 - **Author:** Satoshi Imai
 - **License:** MIT
 
-> **v0.2 (draft).** See [CHANGELOG.md](../CHANGELOG.md) for the changes from v0.1.1 and the backward-compatibility notes.
+> **v0.3 (draft).** See [CHANGELOG.md](../CHANGELOG.md) for the changes from v0.2 and the backward-compatibility notes.
 
 ## Abstract
 
@@ -63,7 +63,7 @@ An event is a JSON object [RFC-8259]. Its normative schema is
 | Field                 | Type              | Presence | Notes                                                                                                                                                                                                                                  |
 | --------------------- | ----------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`                  | UUID              | REQUIRED | Tool-generated UUID [RFC-9562] (SHOULD be version 4 or 7; the nil UUID SHOULD NOT be used). Correlation key for one operation: the `attempt` and its terminal `outcome` share it. De-duplication key for attempts (§7.1).              |
-| `spec_version`        | string            | REQUIRED | MUST be `auditable-mcp/0.2`.                                                                                                                                                                                                           |
+| `spec_version`        | string            | REQUIRED | MUST be `auditable-mcp/0.3`.                                                                                                                                                                                                           |
 | `ts`                  | ISO-8601 datetime | REQUIRED | Tool-observed time (advisory; host time is authoritative). MUST be UTC with a `Z` suffix, no numeric offset (per the schema pattern).                                                                                                  |
 | `call_id`             | string            | REQUIRED | The parent `tools/call` JSON-RPC request id, as a string. A numeric id MUST be encoded as its decimal string form (e.g. `42` -> `"42"`), since `call_id` is hashed into the event and must not diverge across ports.                   |
 | `traceparent`         | string            | OPTIONAL | W3C Trace Context [W3C-Trace-Context] `traceparent` header value.                                                                                                                                                                      |
@@ -206,7 +206,7 @@ The capability object declares the operational parameters of the audit subsystem
 
 | Field          | Type   | Presence | Notes                                                                                                                                                                                                            |
 | -------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `spec_version` | string | REQUIRED | The Auditable MCP version the participant supports (e.g., `auditable-mcp/0.2`). Enables a cross-version handshake, since events carry `spec_version` (§4) but negotiation must establish a common version first. |
+| `spec_version` | string | REQUIRED | The Auditable MCP version the participant supports (e.g., `auditable-mcp/0.3`). Enables a cross-version handshake, since events carry `spec_version` (§4) but negotiation must establish a common version first. |
 | `level`        | string | REQUIRED | MUST be `"L1"` or `"L2"`. The negotiated assurance level.                                                                                                                                                        |
 | `attempt`      | string | REQUIRED | MUST be `"request"`. `audit/attempt` is a blocking, fail-closed request. A single permitted value in this version; it is a forward-compatibility placeholder reserving the field for a future non-blocking mode. |
 | `witness`      | string | REQUIRED | MUST be `"self"` or `"host"` (§5.2). A host declares `"host"` when it signs Receipts; a tool declares `"host"` when it requires one. Unlike `level`, the obligation on this axis falls on the host, so the roles of requirement and offer are reversed.  |

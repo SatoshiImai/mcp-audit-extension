@@ -4,6 +4,38 @@ All notable changes to the Auditable MCP specification are documented here. The 
 
 This changelog is informative. Normative force (the RFC 2119 keywords) lives only in the specification; the summaries below merely describe it.
 
+## v0.3 - 2026-09-24
+
+Makes the extension real on the MCP wire and separates who recorded a chain from how strongly it is signed. Driven by two findings: [SEP-2133] made `capabilities.extensions` the place an extension declares itself (final, and shipping in MCP protocol version `2026-07-28`), and a tool that had no documented fallback would fail closed against every host that does not speak this extension - which is every ordinary MCP host.
+
+### Breaking changes
+
+- **`spec_version` advances `auditable-mcp/0.2` -> `auditable-mcp/0.3`.** The version string is part of the canonical event bytes, so all golden digests change; there is no on-the-wire compatibility window between draft versions. New digests: Level-1 sealed chain `d2b8674f...`, Level-2 signed chain `33303159...`.
+- **The capability object gains a REQUIRED `witness` field** (§5.2, `schema/audit-capability.schema.json`). A v0.2 capability object no longer validates.
+- **The declaration moves from `capabilities.experimental["auditable-mcp"]` to `capabilities.extensions["com.timberlandchapel/auditable-mcp"]`** (§6.1). The `experimental` note the v0.2 text carried - "until this extension is standardized" - has been overtaken by [SEP-2133].
+
+### Added (normative)
+
+- **§6.2 Graceful degradation.** A session is *audit-negotiated* only when both parties declared the extension and the capability comparison succeeded. In any other session a tool MUST NOT send `audit/attempt` or `audit/outcome`, and MUST serve `tools/call` exactly as a build without this extension would. Two postures are admissible - **degraded** (serve, and record into an audit host the tool provides for itself; RECOMMENDED default) and **mandatory** (refuse to serve, as [SEP-2133] permits). Serving a call while silently recording nothing is NOT conformant.
+- **§5.2 the witness axis, orthogonal to the conformance level.** The level says how strongly a tool's attestation resists forgery; the witness says who sealed it. A witnessing host signs the **Receipt** - the four host-assigned fields an `accept` already returns - and persists `host_signature` and `host_key_id` with the sealed record (§7.1). The witness is established **per record, by evidence**: a self-hosting tool cannot manufacture the `host` state, because it holds no key the verifier's registry binds to a host. Absence of a signature is a state, not an anomaly.
+- **§10.10 identity binding in shared storage.** A chain proves authorship and internal consistency, never whose chain it is, so a deployment holding records for several principals MUST either wrap each record in a SEP-3004 boundary record whose core binds `principal_id`, or carry the host-assigned identity inside the sealed record - and a verifier MUST check it against an expectation supplied out-of-band. A missing binding fails closed. No identity field is added to §4.
+- **Tier-1 vocabulary** (§7.6): abort reasons `host-unwitnessed` and `host-signature-invalid`; anomaly kinds `host-signature-invalid` and `principal-mismatch`.
+
+### Changed (normative)
+
+- **§6** scopes the fail-closed obligations to an audit-negotiated session; a peer that never declared the extension MUST NOT trigger them. **§7.3** lists the missing Receipt among the halt conditions.
+- **§6.1** states the identifier/version split: the identifier names the extension, `spec_version` names the wire version. Below 1.0 the [SEP-2133] breaking-change rule is discharged through `spec_version`, which is REQUIRED in the settings object and compared at negotiation, so an older peer fails to negotiate visibly rather than misbehaving. A new identifier will be minted at or after 1.0.
+- **§11.2** adds Receipt Signing; **§11.3** adds Witness Enforcement and Degradation. **§12.1** binds a host's Receipt key under the same algorithm registry shape as a tool's.
+
+### Backward compatibility
+
+- **The witness axis does not move `record_hash`.** The Receipt signature is computed over the host-assigned fields and stored beside them, outside the §8.2 preimage, so a chain sealed with a Receipt and the same chain sealed without one hash identically, and chains sealed under an earlier version verify unchanged.
+- The digests change only because `spec_version` is inside the hashed event, as at every previous version bump.
+
+### Reference alignment
+
+- `spec/schema/*.json` and `spec/vectors/*.json` are regenerated at v0.3; both chain vectors were reproduced byte-for-byte at v0.2 before regeneration, and the v0.3 output was recomputed independently from the §8.2 preimage. The TypeScript and Python reference implementations under `reference/` are **not yet aligned to v0.3**.
+
 ## v0.2 - 2026-07-25
 
 Redefines `egress` semantics and advances the wire `spec_version` to `auditable-mcp/0.2`. Driven by production dogfooding: a physical-network definition of `egress` marks nearly every operation in a zero-trust / cloud-native deployment as egress, destroying its value as a DLP signal.
