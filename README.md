@@ -2,7 +2,11 @@
 
 > **NOTICE:** This repository contains a draft specification proposal for the Model Context Protocol (MCP) ecosystem. It is **not** a production SDK or a library. The provided codebases are strictly reference implementations demonstrating protocol conformance.
 
-Auditable MCP is a proposed extension protocol that enables an MCP tool server to self-attest its internal domain operations, optionally reinforced by cryptographic signatures and sequencing at Level 2. These operations are emitted as structured audit events, which the host subsequently anchors into a tamper-evident ledger.
+Auditable MCP is a proposed extension protocol that enables an MCP tool server to self-attest its internal domain operations. These operations are emitted as structured audit events, which the host subsequently anchors into a tamper-evident ledger.
+
+It is an MCP extension in the sense of [SEP-2133](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2133), declared under the `extensions` capability member as `com.timberlandchapel/auditable-mcp`. Two independent axes describe an audit exchange: the **conformance level** (L1, or L2 adding signatures and sequencing) states how strongly a tool's attestation resists forgery, and the **witness** states whether the host that sealed a record signed for having done so.
+
+**A tool that speaks this extension still works with hosts that do not.** Where the host has not declared it, the tool sends no audit message and serves the call exactly as a build without the extension would, recording into an audit host it provides for itself. The specification names the admissible fallbacks and forbids the one that serves a call while recording nothing.
 
 - **Read the specification:** [`spec/auditable-mcp.md`](spec/auditable-mcp.md)
 - **Normative artifacts:** [`spec/schema/`](spec/schema) (JSON Schema), [`spec/vectors/`](spec/vectors) (Conformance vectors)
@@ -28,7 +32,9 @@ The protocol provides detective control, not preventive control. The host acts a
 
 ### Cross-Language Interoperability
 
-The TypeScript and Python reference implementations validate against the **same** language-neutral schemas and conformance vectors. By strictly adhering to the JSON Canonicalization Scheme (RFC 8785) mandated by the specification, both implementations reproduce the cryptographic hashes and ledger digests byte-for-byte, proving deterministic interoperability.
+The TypeScript and Python reference implementations validate against the **same** language-neutral schemas and conformance vectors. The JSON Canonicalization Scheme (RFC 8785) mandated by the specification is what makes this checkable: two conformant implementations reproduce the cryptographic hashes and ledger digests byte-for-byte, and the vectors are how either one is held to it.
+
+> **The reference implementations under `reference/` are aligned to v0.2 and have not been updated to v0.3.** The `spec/` artifacts are the v0.3 ones; running the demos below against them will fail on the changed digests until the ports are updated. See [CHANGELOG.md](CHANGELOG.md).
 
 ### Running the Conformance Demos
 
@@ -39,7 +45,7 @@ To verify the cross-language byte-for-byte conformance and see the integrity enf
 
 ## Status
 
-Draft proposal - `auditable-mcp/0.2`.
+Draft proposal - `auditable-mcp/0.3`.
 
 ## Author & License
 
