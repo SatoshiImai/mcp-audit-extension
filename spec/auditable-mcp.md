@@ -12,6 +12,8 @@
 Auditable MCP is a proposed extension to the Model Context Protocol (MCP). It defines a mechanism for an MCP tool server to self-attest its internal domain operations, such as database transactions and downstream API requests executed within a tool call. These operations are emitted as structured audit events, which the host subsequently records in a tamper-evident ledger.
 While existing MCP auditing capabilities are limited to the orchestrator-visible call boundary, this extension addresses the unobservable interior by relying on the tool's self-attestation. This protocol is complementary to SEP-3004 (Tamper-Evident Audit Record Contract) [SEP-3004].
 
+Two properties shape how it is adopted. A tool that speaks this extension remains usable by hosts that do not: where the extension was not negotiated, the tool sends no audit message and serves the call as an ordinary MCP tool, under one of two named postures (§6.2). And a record states who recorded it: a host that confirms sealing signs for having done so, so a verifier can tell a chain a distinct host confirmed from one a tool recorded for itself (§5.2).
+
 ## 1. Motivation
 
 When an MCP tool executes a `tools/call`, the host can observe the call boundary, including the tool name, arguments, and result. However, the host cannot observe the tool's internal execution. While operators can directly instrument the internals of first-party tools, third-party tools remain opaque. Regulatory record-keeping frameworks, such as Article 12 of the EU AI Act [EU-AI-Act], mandate traceability and the automatic recording of events (logs) for high-risk AI systems. Observations restricted to the call boundary are insufficient to provide this level of detail.
@@ -33,13 +35,15 @@ The objective of this specification is to provide a mechanism for accountability
 - Defining a protocol for an MCP tool to voluntarily report its internal domain operations.
 - Establishing the host's mechanism to anchor these reported events into a tamper-evident ledger.
 - Enforcing ledger integrity by strictly refusing to record events that fail cryptographic or structural verification.
+- Defining what a tool does when the extension was not negotiated, so that speaking it does not make the tool unusable with ordinary MCP hosts (§6.2).
+- Distinguishing a record a distinct host confirmed sealing from one whose only backing is the tool's own attestation (§5.2).
 
 **Out of Scope:**
 
 - Defining real-time access control policies or authorization gateways for domain actions.
 - Evaluating or guaranteeing the inherent trustworthiness of a tool. (Dangerous or unauthorized tools are assumed to be excluded out-of-band via the orchestrator's allowlist.)
 
-Architecturally, the host acts as a "monitoring camera" over tools that have already been vetted by the orchestrator. Via this extension protocol, the host is not expected to evaluate or authorize the semantic execution of a tool's internal actions. Therefore, within this document, when the host "rejects" or "blocks" a record, this exclusively refers to refusing the ingestion of an invalid audit record - ensuring a fail-closed posture for ledger integrity - and never implies the real-time interception or prevention of the domain action itself.
+Architecturally, the host acts as a "monitoring camera" over tools that have already been vetted by the orchestrator - except in the degraded posture (§6.2), where the tool provides the camera for itself and §10.2 bounds what the resulting chain establishes. Via this extension protocol, the host is not expected to evaluate or authorize the semantic execution of a tool's internal actions. Therefore, within this document, when the host "rejects" or "blocks" a record, this exclusively refers to refusing the ingestion of an invalid audit record - ensuring a fail-closed posture for ledger integrity - and never implies the real-time interception or prevention of the domain action itself.
 
 ## 3. Conventions and Definitions
 
@@ -123,7 +127,7 @@ These fields do not need to correspond. A host MUST NOT require `action_context_
 
 Irrespective of a tool's disclosure policy, credentials, secret values, and raw authentication tokens MUST NOT appear in any field of an event. Personally identifiable information (PII) SHOULD be redacted or omitted in accordance with the operator's policy. The ledger is append-only; tools SHOULD use `action_context_hash` for sensitive context to prevent irreversible plaintext disclosure.
 
-## 5. Conformance levels
+## 5. Conformance levels and the witness axis
 
 Auditable MCP defines two conformance levels to provide a progression from basic self-reporting to cryptographically verifiable auditing. Level 2 adds cryptographic signatures to prevent forgery and a monotonic `signer_seq` to detect event loss. A `signer_seq` gap may indicate that an emitted event failed to reach the host (§7.4, §10.5).
 
@@ -460,7 +464,7 @@ The requirement for deterministic serialization (RFC 8785) prior to hashing and 
 
 ### 10.1 Ledger Integrity as the Root of Trust
 
-The host acts as the definitive authority for ledger integrity. Auditable MCP relies on the host's ability to maintain the append-only property and the hash-chain of records. Compromise of the host's ledger storage results in the total loss of auditability.
+The host acts as the definitive authority for ledger integrity. Auditable MCP relies on the host's ability to maintain the append-only property and the hash-chain of records. Compromise of the host's ledger storage results in the total loss of auditability. Where the witness is `host`, an attacker who reaches the storage but not the host's witness-signing key cannot re-sign the records it rewrites, so a verifier that checks witness signatures detects the rewrite (§11.4); the signing key is therefore a distinct asset from the ledger and SHOULD be held separately from it.
 
 ### 10.2 Limits of Self-Attestation (Omission and Misattestation)
 
@@ -490,7 +494,7 @@ The Polluted Stop procedure (§7.2) lets a Level-2 tool detect that the host sea
 
 - It detects only body substitution where the host honestly reports the hash it sealed. A host that lies consistently - returning a `record_hash` computed over the tool's original bytes while sealing or persisting something else - passes the check undetected.
 - It does not cover post-`accept` tampering, nor a host that returns `accept` without durably persisting the record.
-- It covers only attempt records: `audit/outcome` is a notification (§6) with no returned `record_hash`, so a tool cannot Polluted-Stop-verify its own outcomes. Outcome integrity rests instead on chain recomputation and the anchored digest.
+- It covers only attempt records: `audit/outcome` is a notification (§6) with no returned `record_hash`, so a tool cannot Polluted-Stop-verify its own outcomes. Outcome integrity rests instead on chain recomputation, the anchored digest, and - where the witness is `host` - the signature the host writes into the ledger for each sealed outcome (§7.2).
 - Under Level 1 the tool is not required to verify (§11.3); absent that optional check, an L1 host is trusted unconditionally.
 
 Beyond this scope, detection rests on the host's own ledger integrity (§10.1), independent verification against an out-of-band anchor (§8.3), and governance-boundary reconciliation (§7.5). Post-seal tampering with a sealed Level-2 `signature` is caught by chain recomputation as a `record-hash-mismatch` (the signature is inside the record-hash preimage, §8.2), so an independent verifier detects it without re-running signature verification; the `signature-invalid` anomaly kind (§7.6) is reserved for a verifier that additionally re-verifies signatures against a synchronized key registry, which is optional for a pure ledger auditor.
@@ -544,7 +548,7 @@ A single-principal deployment needs neither construction, and this specification
 
 ## 11. Conformance
 
-An implementation (Host or Tool) is considered conformant to the Auditable MCP specification if it fulfills the following normative requirements:
+An implementation (Host, Tool, or Verifier) is considered conformant to the Auditable MCP specification if it fulfills the following normative requirements. An implementation that acts in more than one role meets the requirements of each.
 
 ### 11.1 General Requirements
 
@@ -575,7 +579,7 @@ A conformant Tool MUST:
 - **Signature Encoding (Level 2):** Sign with the algorithm bound to the `key_id` by the registry and encode the detached `signature` as standard base64 (§5.1).
 - **Abort Signaling:** Upon a `reject`, `unavailable`, or Polluted-Stop hash mismatch, emit an `outcome: "aborted"` event with the appropriate Tier-1 `reason` (§7.6) before completely halting the operation.
 - **Witness Enforcement:** If it requires `witness: "host"` (§5.2), verify the witness signature on every `accept` and abort with `host-unwitnessed` or `host-signature-invalid` rather than act on an unwitnessed record (§7.2).
-- **Degradation:** In an unnegotiated session (§6.2), send no `audit/attempt` or `audit/outcome`, serve `tools/call` exactly as a build without this extension would, and and take one of the two admissible postures, degraded or mandatory. Never serve a call while neither recording the operations nor reporting the omission.
+- **Degradation:** In an unnegotiated session (§6.2), send no `audit/attempt` or `audit/outcome`, serve `tools/call` exactly as a build without this extension would, and take one of the two admissible postures, degraded or mandatory. Never serve a call while neither recording the operations nor reporting the omission.
 
 ### 11.4 Verifier Conformance
 

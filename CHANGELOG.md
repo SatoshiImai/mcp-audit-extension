@@ -37,6 +37,8 @@ Makes the extension real on the MCP wire and separates who recorded a chain from
 
 ### Editorial
 
+- **The framing sections caught up with the body.** The Abstract and §2's scope described the v0.2 picture and named neither the degradation contract nor the witness; §5's heading said "Conformance levels" while housing an axis the text calls not a level; §11's preamble named Host and Tool while its subsections define three roles; §10.1 and §10.6 predate the witness and did not account for it - a storage compromise that cannot re-sign is detectable, and outcome integrity now rests on the host's sealed signature as well as on chain recomputation.
+
 - **All-capital `NOT` no longer appears outside a BCP 14 keyword.** Six sites - five of them predating v0.3 - used `NOT` alone for emphasis. [RFC-8174] gives the listed key words their meaning "when, and only when, they appear in all capitals", and `NOT` alone is not among them, so the emphasis read as normative force the text never intended. Each is now italicised, matching the emphasis the document already uses. No requirement changes.
 
 ### Backward compatibility
