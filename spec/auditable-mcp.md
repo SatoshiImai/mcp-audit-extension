@@ -46,7 +46,7 @@ Architecturally, the host acts as a "monitoring camera" over tools that have alr
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 [RFC-2119] [RFC-8174] when, and only when, they appear in all capitals, as shown here.
 
 - **Tool** - A specific capability exposed by an MCP Server, whose internal operations are subject to audit via this specification.
-- **Host** - The MCP client or orchestrator that receives audit events and anchors them into the ledger.
+- **Host** - The party that receives audit events and anchors them into the ledger. Ordinarily the MCP client or orchestrator; in the degraded posture (§6.2) the tool provides one for itself, which is what the witness axis (§5.2) distinguishes.
 - **Event** - One audit record describing one internal operation (§4).
 - **Ledger** - The host's append-only, hash-chained, tamper-evident store of attested events.
 - **Boundary** - The standard `tools/call` interface which the host can directly observe.
@@ -302,7 +302,9 @@ The `audit/outcome` event records the terminal state of the tool's execution lif
 - `failed` - the internal action was performed but did not complete successfully.
 - `aborted` - the internal action was not performed (fail-closed; e.g., the attempt was not accepted, or Polluted Stop detected tampering).
 
-An `audit/outcome` that correlates to an accepted attempt (by shared `id`) is sealed as a record in the same partition chain (§8.3), subject to the same Level-2 signature and sequence validation as an attempt (§7.4). An `aborted` outcome for a never-accepted or rejected attempt is not sealed into the chain and is not a tampering anomaly (§10.4); the host MUST flag a `success` or `failed` outcome that references no accepted attempt as an anomaly.
+An `audit/outcome` that correlates to an accepted attempt (by shared `id`) is sealed as a record in the same partition chain (§8.3), subject to the same Level-2 signature and sequence validation as an attempt (§7.4).
+
+**A witnessing host signs sealed outcome records too.** A host that declares `witness: "host"` MUST compute a witness signature over every sealed outcome record's host-assigned fields, exactly as for an attempt (§7.1), and persist it with the record. `audit/outcome` is a notification and has no response channel, so this signature is never returned to the tool; it is written into the ledger, where a verifier reads it (§11.4). Without it every terminal outcome in a witnessed chain would be unwitnessed, placing the conclusion of every operation outside what the host confirmed (§5.2). An `aborted` outcome for a never-accepted or rejected attempt is not sealed into the chain and is not a tampering anomaly (§10.4); the host MUST flag a `success` or `failed` outcome that references no accepted attempt as an anomaly.
 
 An `aborted` outcome MUST carry a `reason`, and it MUST be one of the Tier-1 abort codes `hash-mismatch`, `host-rejected`, or `host-unavailable` for the corresponding condition (§7.6); the event schema pins `reason` to this closed set. Because the outcome event is sealed into the ledger, its `reason` is part of the interoperable, hashed contract and admits no free-form value. Domain-specific failure detail (for a `failed` outcome, or additional context for an `aborted` one) belongs in `action_context`/`action_context_hash` (§4.3), not in `reason`.
 
@@ -311,7 +313,9 @@ To guarantee that the host recorded the exact event the tool emitted, the tool M
 - If the hashes do not match (indicating ledger pollution or host compromise), the tool MUST NOT perform the internal action. It MUST emit an outcome event with `outcome: "aborted"` and `reason: "hash-mismatch"`.
 - If the host replies with `reject` or `unavailable`, the tool MUST NOT perform the internal action. It MUST emit an outcome event with `outcome: "aborted"` and `reason: "host-rejected"` for a `reject` or `reason: "host-unavailable"` for an `unavailable`.
 - If the tool requires `witness: "host"` (§5.2) and the `accept` carries no `host_signature`, the tool MUST NOT perform the internal action. It MUST emit an outcome event with `outcome: "aborted"` and `reason: "host-unwitnessed"`.
-- If a `host_signature` is present but does not verify against the `host_key_id`'s registry entry, the tool MUST NOT perform the internal action. It MUST emit an outcome event with `outcome: "aborted"` and `reason: "host-signature-invalid"`. A tool that does not require a witness MAY omit this verification; a tool that performs it MUST act on the result, whether or not it required a signature.
+- If a `host_signature` is present but does not verify against the `host_key_id`'s registry entry, the tool MUST NOT perform the internal action. It MUST emit an outcome event with `outcome: "aborted"` and `reason: "host-signature-invalid"`. A tool that does not require a witness MAY omit this verification; a tool that performs it MUST apply this bullet, whether or not it required a signature.
+
+These conditions are listed in precedence order. Where more than one holds, the tool MUST emit the `reason` of the first that applies, so that two implementations seal the same `reason` for the same response. The `reason` is sealed into the ledger and compared across implementations (§7.6), so leaving the choice open would make the record implementation-dependent.
 
 ### 7.3 Protocol limits and environmental enforcement
 
@@ -544,7 +548,7 @@ A conformant Host MUST:
 
 - **Capability Enforcement:** Publish its required audit capability under the `extensions` member of its `ClientCapabilities`, keyed by the extension identifier (§6.1), and enforce that level at runtime (§7.1), rejecting events that do not meet the mandated level.
 - **Verifiable Accept:** Return `seq`, `host_ts`, and `previous_hash` alongside `record_hash` in the `accept` response (§7.1).
-- **Witness Signing:** If it declares `witness: "host"` (§5.2), sign the host-assigned fields of every accepted record, return `host_signature` and `host_key_id`, and persist both with the sealed record (§7.1).
+- **Witness Signing:** If it declares `witness: "host"` (§5.2), sign the host-assigned fields of every sealed record - attempt and outcome alike - and persist `host_signature` and `host_key_id` with it; return both in the `accept` response for an attempt, which is the only record kind with a response channel (§7.1, §7.2).
 - **Ledger Validation:** Perform the mandatory schema, numeric canonicalization-domain (§8.1), and attempt `id`-uniqueness (both levels), plus `signer_seq` and signature (Level 2), validations before sealing (§7.1); fail closed on integrity violations.
 - **Receive-boundary Numeric Enforcement:** Reject a number outside the canonicalization domain at ingestion, before a lossy native parse can corrupt it (§8.1).
 - **Anomaly Flagging:** Flag (without rejecting) a forward `signer_seq` gap (`signer-seq-gap`) where the `key_id` is partition-bound (§7.4) and any orphaned `success` or `failed` outcome (`orphaned-outcome`) that references no accepted attempt (§7.2, §7.6).
@@ -573,6 +577,8 @@ A verifier reads a sealed ledger, possibly written by a different implementation
 - **Witness Determination:** Determine a record's witness (§5.2) by verifying `host_signature` against the `host_key_id`'s registry entry. A verifier MUST NOT infer the witness from any other field. A record carrying no `host_signature` is unwitnessed, which is a state and not an anomaly; a signature that is present and fails verification is reported `host-signature-invalid`.
 - **Identity Matching:** Where the deployment binds identity (§10.10), compare each record's bound identity against an expectation supplied out-of-band, and report `principal-mismatch` on a mismatch or on a missing binding.
 - **Code Vocabulary:** Report anomalies using the Tier-1 anomaly kinds, exactly as specified (§7.6).
+
+Level-2 verification and witness determination both require the out-of-band key registries (§5.1, §7.1). A verifier without them MUST report that those checks were not performed, rather than return a result in which their anomalies are simply absent: an unchecked signature and a valid one are not the same finding.
 
 `unreported-egress` is the one Tier-1 anomaly a verifier does not produce by reading a ledger: it arises from governance-boundary reconciliation against an independent observation (§7.5), which is outside this role.
 
