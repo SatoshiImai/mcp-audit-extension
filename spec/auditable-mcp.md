@@ -553,6 +553,8 @@ An implementation (Host or Tool) is considered conformant to the Auditable MCP s
 
 ### 11.2 Host Conformance
 
+A host embedded in a tool for the degraded posture (§6.2) takes part in no MCP session, so the capability requirement below does not apply to it; every other requirement does.
+
 A conformant Host MUST:
 
 - **Capability Enforcement:** Publish its required audit capability under the `extensions` member of its `ClientCapabilities`, keyed by the extension identifier (§6.1), and enforce that level at runtime (§7.1), rejecting events that do not meet the mandated level.
@@ -573,7 +575,7 @@ A conformant Tool MUST:
 - **Signature Encoding (Level 2):** Sign with the algorithm bound to the `key_id` by the registry and encode the detached `signature` as standard base64 (§5.1).
 - **Abort Signaling:** Upon a `reject`, `unavailable`, or Polluted-Stop hash mismatch, emit an `outcome: "aborted"` event with the appropriate Tier-1 `reason` (§7.6) before completely halting the operation.
 - **Witness Enforcement:** If it requires `witness: "host"` (§5.2), verify the witness signature on every `accept` and abort with `host-unwitnessed` or `host-signature-invalid` rather than act on an unwitnessed record (§7.2).
-- **Degradation:** In an unnegotiated session (§6.2), send no `audit/attempt` or `audit/outcome`, serve `tools/call` exactly as a build without this extension would, and take one of the two admissible postures - degraded or mandatory - and never serve a call while neither recording the operations nor reporting the omission.
+- **Degradation:** In an unnegotiated session (§6.2), send no `audit/attempt` or `audit/outcome`, serve `tools/call` exactly as a build without this extension would, and and take one of the two admissible postures, degraded or mandatory. Never serve a call while neither recording the operations nor reporting the omission.
 
 ### 11.4 Verifier Conformance
 
