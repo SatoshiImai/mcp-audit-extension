@@ -10,9 +10,10 @@ import type { AuditEvent } from '../schema/event.js';
 import type { SealedRecord } from '../ledger/ledger.js';
 
 const L2_CAP = {
-  spec_version: 'auditable-mcp/0.2' as const,
+  spec_version: 'auditable-mcp/0.3' as const,
   level: 'L2' as const,
   attempt: 'request' as const,
+  witness: 'none' as const,
 };
 
 function line(): void {
@@ -32,7 +33,7 @@ function printLedger(records: readonly SealedRecord[]): void {
 function attemptFor(key: ToolKey, seq: number, ref: string): AuditEvent {
   const base: AuditEvent = {
     id: `00000000-0000-4000-8000-${(seq + 1).toString(16).padStart(12, '0')}`,
-    spec_version: 'auditable-mcp/0.2',
+    spec_version: 'auditable-mcp/0.3',
     ts: '2026-07-16T00:00:00.000Z',
     call_id: 'call_adv',
     action_type: 'db.write',
@@ -80,7 +81,7 @@ async function main(): Promise<void> {
   {
     const h = new AuditHost('acme#adv', L2_CAP, registry);
     const unsigned: AuditEvent = {
-      id: '00000000-0000-4000-8000-0000000000aa', spec_version: 'auditable-mcp/0.2', ts: '2026-07-16T00:00:00.000Z',
+      id: '00000000-0000-4000-8000-0000000000aa', spec_version: 'auditable-mcp/0.3', ts: '2026-07-16T00:00:00.000Z',
       call_id: 'call_adv', action_type: 'db.write', mutates: true, egress: false,
       target_resource: { kind: 'table', ref: 'notes' }, outcome: 'attempted', action_context_hash: `sha256:${'0'.repeat(64)}`,
     };

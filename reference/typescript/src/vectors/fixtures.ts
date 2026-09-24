@@ -39,7 +39,7 @@ function pid(n: number): string {
 export const SIGNED_CHAIN_EVENTS: AuditEvent[] = [
   {
     id: pid(10),
-    spec_version: 'auditable-mcp/0.2',
+    spec_version: 'auditable-mcp/0.3',
     ts: '2026-07-15T00:00:10.000Z',
     call_id: 'call_l2',
     action_type: 'db.write',
@@ -54,7 +54,7 @@ export const SIGNED_CHAIN_EVENTS: AuditEvent[] = [
   },
   {
     id: pid(10),
-    spec_version: 'auditable-mcp/0.2',
+    spec_version: 'auditable-mcp/0.3',
     ts: '2026-07-15T00:00:11.000Z',
     call_id: 'call_l2',
     action_type: 'db.write',
@@ -80,7 +80,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'db-read-minimal',
     event: {
       id: pid(1),
-      spec_version: 'auditable-mcp/0.2',
+      spec_version: 'auditable-mcp/0.3',
       ts: '2026-07-15T00:00:01.000Z',
       call_id: 'call_abc',
       action_type: 'db.read',
@@ -94,7 +94,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'db-query-with-trace-and-context',
     event: {
       id: pid(2),
-      spec_version: 'auditable-mcp/0.2',
+      spec_version: 'auditable-mcp/0.3',
       ts: '2026-07-15T00:00:02.000Z',
       call_id: 'call_abc',
       traceparent: '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01',
@@ -111,7 +111,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'ext-l2-signed-unicode',
     event: {
       id: pid(3),
-      spec_version: 'auditable-mcp/0.2',
+      spec_version: 'auditable-mcp/0.3',
       ts: '2026-07-15T00:00:03.000Z',
       call_id: 'call_xyz',
       action_type: 'ext.stripe.refund_charge',
@@ -129,7 +129,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'secret-read',
     event: {
       id: pid(4),
-      spec_version: 'auditable-mcp/0.2',
+      spec_version: 'auditable-mcp/0.3',
       ts: '2026-07-15T00:00:04.000Z',
       call_id: 'call_abc',
       action_type: 'secret.read',
@@ -145,7 +145,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'aborted-outcome-host-rejected',
     event: {
       id: pid(5),
-      spec_version: 'auditable-mcp/0.2',
+      spec_version: 'auditable-mcp/0.3',
       ts: '2026-07-15T00:00:05.000Z',
       call_id: 'call_abc',
       action_type: 'db.write',
@@ -154,6 +154,38 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
       target_resource: { kind: 'table', ref: 'customers' },
       outcome: 'aborted',
       reason: 'host-rejected',
+    },
+  },
+  {
+    // The witness axis adds two abort codes: a record no distinct party confirmed (§5.2, §7.2)...
+    name: 'aborted-outcome-host-unwitnessed',
+    event: {
+      id: pid(6),
+      spec_version: 'auditable-mcp/0.3',
+      ts: '2026-07-15T00:00:06.000Z',
+      call_id: 'call_abc',
+      action_type: 'db.write',
+      mutates: true,
+      egress: false,
+      target_resource: { kind: 'table', ref: 'customers' },
+      outcome: 'aborted',
+      reason: 'host-unwitnessed',
+    },
+  },
+  {
+    // ...and one whose witness signature was present and did not verify (§7.2, §11.4).
+    name: 'aborted-outcome-host-signature-invalid',
+    event: {
+      id: pid(7),
+      spec_version: 'auditable-mcp/0.3',
+      ts: '2026-07-15T00:00:07.000Z',
+      call_id: 'call_abc',
+      action_type: 'db.write',
+      mutates: true,
+      egress: false,
+      target_resource: { kind: 'table', ref: 'customers' },
+      outcome: 'aborted',
+      reason: 'host-signature-invalid',
     },
   },
 ];
@@ -170,7 +202,7 @@ export type ErrorCase =
 function attemptBase(overrides: Record<string, unknown>): Record<string, unknown> {
   return {
     id: pid(6),
-    spec_version: 'auditable-mcp/0.2',
+    spec_version: 'auditable-mcp/0.3',
     ts: '2026-07-15T00:00:06.000Z',
     call_id: 'call_abc',
     action_type: 'db.write',

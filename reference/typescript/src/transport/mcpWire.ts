@@ -30,13 +30,20 @@ export const REJECT_REASONS = ['schema-invalid', 'replay-detected', 'signature-i
 
 // audit/attempt result: accept (recorded) / reject (refused) / unavailable (infra).
 export const AuditAttemptResultSchema = z.discriminatedUnion('status', [
-  z.strictObject({
-    status: z.literal('accept'),
-    seq: z.number().int().nonnegative(),
-    record_hash: z.string().regex(/^[0-9a-f]{64}$/),
-    host_ts: z.iso.datetime(),
-    previous_hash: z.string().regex(/^[0-9a-f]{64}$/),
-  }),
+  z
+    .strictObject({
+      status: z.literal('accept'),
+      seq: z.number().int().nonnegative(),
+      record_hash: z.string().regex(/^[0-9a-f]{64}$/),
+      host_ts: z.iso.datetime(),
+      previous_hash: z.string().regex(/^[0-9a-f]{64}$/),
+      // The witness pair (§5.2, §7.1): standard base64 over the canonical host-assigned fields,
+      // and the key id a verifier's registry resolves. Present only where the host signs.
+      host_signature: z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/).optional(),
+      host_key_id: z.string().min(1).optional(),
+    })
+    // §7.1: they appear together or not at all. A half-present pair is not a conformant response.
+    .refine((r) => (r.host_signature === undefined) === (r.host_key_id === undefined)),
   z.strictObject({ status: z.literal('reject'), reason: z.enum(REJECT_REASONS) }),
   z.strictObject({ status: z.literal('unavailable'), reason: z.literal('internal-error'), retryable: z.literal(true) }),
 ]);

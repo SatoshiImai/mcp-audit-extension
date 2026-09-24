@@ -52,6 +52,17 @@ Makes the extension real on the MCP wire and separates who recorded a chain from
 - **New vectors cover what v0.3 adds:** `chain-witnessed.json` (the same chain as `chain.json` plus `host_signature`, `host_key_id`, and the witness-signature preimage, pinned to the same `record_hash` values and the same digest), and two `events.json` entries for the new abort reasons. Folding the witness signature into the §8.2 preimage moves the digest, so the vector fails if an implementation gets that wrong.
 - **Normative references:** [SEP-2133] and [SEP-3004] move from Informative to Normative, since §6.1 and §10.10 place requirements on them. [SCITT] and [NIST-SP-800-53] are added as informative. The TypeScript and Python reference implementations under `reference/` are **not yet aligned to v0.3**.
 
+### Reference implementations
+
+- **Both ports are at v0.3.** They carry the witness axis (`witness` on the capability, the host's
+  signature over its own assigned fields, the tool's §7.2 precedence and its two abort codes),
+  negotiation on both axes with the absent declaration §6.2 governs kept apart from a mismatch, and
+  the §5.1 rule that a registry entry's key is a key of the entry's algorithm. They reproduce every
+  committed vector byte-for-byte, `chain-witnessed.json` included, and the TypeScript port
+  regenerates the committed JSON Schemas from its Zod source of truth.
+- The reference ports seal synchronously, so §7.1's atomic sealing and §7.4's atomic numbering hold
+  by construction rather than by a lock; both say so where the seal happens.
+
 ## v0.2 - 2026-07-25
 
 Redefines `egress` semantics and advances the wire `spec_version` to `auditable-mcp/0.2`. Driven by production dogfooding: a physical-network definition of `egress` marks nearly every operation in a zero-trust / cloud-native deployment as egress, destroying its value as a DLP signal.

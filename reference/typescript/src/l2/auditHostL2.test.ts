@@ -5,15 +5,16 @@ import { generateToolKey, KeyRegistry } from './keys.js';
 import { signEvent } from './signing.js';
 
 const L2_CAP = {
-  spec_version: 'auditable-mcp/0.2' as const,
+  spec_version: 'auditable-mcp/0.3' as const,
   level: 'L2' as const,
   attempt: 'request' as const,
+  witness: 'none' as const,
 };
 
 function attempt(n: number): AuditEvent {
   return {
     id: `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`,
-    spec_version: 'auditable-mcp/0.2',
+    spec_version: 'auditable-mcp/0.3',
     ts: '2026-07-15T00:00:01.000Z',
     call_id: 'call_abc',
     action_type: 'db.write',

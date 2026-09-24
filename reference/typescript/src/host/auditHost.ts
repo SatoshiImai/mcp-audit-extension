@@ -1,7 +1,7 @@
 import { auditEventSchema, type AuditEvent } from '../schema/event.js';
 import type { AuditCapability, NegotiationResult } from '../schema/capability.js';
 import { DEFAULT_L1_CAPABILITY, negotiateCapability } from '../schema/capability.js';
-import { Ledger, type SealedRecord } from '../ledger/ledger.js';
+import { Ledger, type SealedRecord, type WitnessSigner } from '../ledger/ledger.js';
 import { hasUnsafeNumber } from '../ledger/canonical.js';
 import type { AttemptResponse, RejectReason } from '../transport/transport.js';
 import { verifyEventSignature } from '../l2/signing.js';
@@ -35,15 +35,31 @@ export class AuditHost {
   private readonly rejectedIds = new Set<string>();
   private readonly lastSeqByKey = new Map<string, number>();
   private readonly anomalies: IntegrityAnomaly[] = [];
+  private readonly witnessSigner?: WitnessSigner;
   private hostClock = 0;
 
   // Test switch: simulate durability failure; must fail closed.
   unavailable = false;
 
-  constructor(partition: string, capability: AuditCapability = DEFAULT_L1_CAPABILITY, keyRegistry?: KeyRegistry) {
+  // A host that declares it signs and then does not would leave every record unwitnessed while its
+  // peers expect otherwise; a host that declares `none` MUST NOT return the pair (§7.1), and
+  // holding a signer is the only way to violate that. Both are refused here, not at seal time.
+  constructor(
+    partition: string,
+    capability: AuditCapability = DEFAULT_L1_CAPABILITY,
+    keyRegistry?: KeyRegistry,
+    witnessSigner?: WitnessSigner,
+  ) {
+    if (capability.witness === 'host' && witnessSigner === undefined) {
+      throw new Error('a host declaring witness "host" requires a WitnessSigner (§5.2)');
+    }
+    if (capability.witness === 'none' && witnessSigner !== undefined) {
+      throw new Error('a host declaring witness "none" must not hold a WitnessSigner (§7.1)');
+    }
     this.ledger = new Ledger(partition);
     this.capability = capability;
     this.keyRegistry = keyRegistry;
+    this.witnessSigner = witnessSigner;
   }
 
   negotiate(offered: AuditCapability): NegotiationResult {
@@ -140,7 +156,7 @@ export class AuditHost {
       this.anomalies.push({ id: event.id, kind: 'replay-detected', detail: 'id-replay: duplicate attempt id' });
       return { status: 'reject', reason: 'replay-detected' };
     }
-    const sealed = this.ledger.append(event, this.nextHostTs());
+    const sealed = this.ledger.append(event, this.nextHostTs(), this.witnessSigner);
     this.acceptedAttempts.add(event.id);
     this.advanceSeq(event);
     // Verifiable Accept (§7.1): return host-assigned fields the tool needs to reconstruct the
@@ -151,6 +167,9 @@ export class AuditHost {
       record_hash: sealed.record_hash,
       host_ts: sealed.host_ts,
       previous_hash: sealed.previous_hash,
+      ...(sealed.host_signature !== undefined && sealed.host_key_id !== undefined
+        ? { host_signature: sealed.host_signature, host_key_id: sealed.host_key_id }
+        : {}),
     };
   }
 
@@ -190,7 +209,7 @@ export class AuditHost {
       // Each correlated outcome is sealed, not de-duplicated (§8.3). This reference imposes no cap
       // on outcomes per id; §8.3 makes that bound a host/SDK responsibility, so picking a number
       // here would be an arbitrary policy the spec deliberately leaves open.
-      this.ledger.append(event, this.nextHostTs());
+      this.ledger.append(event, this.nextHostTs(), this.witnessSigner);
       this.advanceSeq(event);
       return;
     }

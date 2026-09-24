@@ -8,7 +8,7 @@ cross-language contract that makes the Python mirror verifiable.
 import json
 
 from auditable_mcp.canonical import canonicalize, sha256_hex
-from auditable_mcp.ledger import GENESIS_HASH, compute_record_hash
+from auditable_mcp.ledger import GENESIS_HASH, compute_record_hash, witness_payload
 from auditable_mcp.paths import SPEC_VECTORS_DIR
 
 
@@ -58,3 +58,23 @@ def test_signed_chain_vector() -> None:
     chain = _load('chain-signed.json')
     assert all('signature' in record['event'] for record in chain['records'])
     _recompute_chain('chain-signed.json')
+
+
+def test_witnessed_chain_vector() -> None:
+    """Reproduce the witnessed chain: the same records, plus the pair a signing host adds (§5.2, §7.1).
+
+    The witness signature is not part of the §8.2 preimage, so this chain's record hashes and digest
+    are the unwitnessed chain's. What the vector pins is the preimage the host signs over and where
+    the pair sits on the record.
+    """
+    chain = _load('chain-witnessed.json')
+    _recompute_chain('chain-witnessed.json')
+    assert chain['digest'] == _load('chain.json')['digest']
+    for record in chain['records']:
+        assert record['host_key_id'] and record['host_signature']
+        preimage = record['witness_preimage']
+        assert (
+            witness_payload(record['seq'], record['host_ts'], record['previous_hash'], record['record_hash'])
+            == preimage['canonical']
+        )
+        assert sha256_hex(preimage['canonical']) == preimage['sha256']

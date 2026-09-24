@@ -1,6 +1,6 @@
 import { SPEC_VERSION, type AuditEvent } from '../schema/event.js';
 import { hashCanonical } from '../ledger/canonical.js';
-import { computeRecordHash } from '../ledger/ledger.js';
+import { computeRecordHash, witnessPayload } from '../ledger/ledger.js';
 import type { AttemptResponse, AuditTransport } from '../transport/transport.js';
 import type { EventSigner } from '../l2/signing.js';
 
@@ -40,6 +40,9 @@ export interface AmcpDeps {
   now: () => string; // ISO datetime
 }
 
+// Resolves a `host_key_id` and verifies a witness signature over the host-assigned fields (§11.4).
+export type WitnessVerifier = (hostKeyId: string, signature: string, payload: string) => boolean;
+
 export class AmcpSession {
   constructor(
     private readonly transport: AuditTransport,
@@ -47,7 +50,16 @@ export class AmcpSession {
     private readonly deps: AmcpDeps,
     // Signer presence is the only L1/L2 emission difference (§5).
     private readonly signer?: EventSigner,
-  ) {}
+    // A tool that requires `witness: "host"` (§5.2) verifies every accept and aborts rather than
+    // act on a record no distinct party confirmed (§7.2). Requiring it without a verifier would
+    // abort every action against a host that is signing correctly, so the pairing is enforced.
+    private readonly witnessVerifier?: WitnessVerifier,
+    private readonly requireWitness = false,
+  ) {
+    if (requireWitness && witnessVerifier === undefined) {
+      throw new Error('requireWitness needs a WitnessVerifier (§7.2, §11.3)');
+    }
+  }
 
   private stamp(event: AuditEvent): AuditEvent {
     return this.signer ? this.signer.sign(event) : event;
@@ -75,6 +87,23 @@ export class AmcpSession {
       const reason = resp.status === 'reject' ? 'host-rejected' : 'host-unavailable';
       await this.transport.sendOutcome(this.stamp({ ...base, outcome: 'aborted', reason }));
       throw new AmcpAbortedError(spec.action_type, spec.target_resource.ref, reason);
+    }
+
+    // §7.2 evaluates in precedence order: the response's status above, then the witness signature
+    // that authenticates the host-assigned fields, then the hash computed over them. The reason is
+    // sealed into the ledger and compared across implementations, so the order is not incidental.
+    if (this.requireWitness && resp.host_signature === undefined) {
+      await this.transport.sendOutcome(this.stamp({ ...base, outcome: 'aborted', reason: 'host-unwitnessed' }));
+      throw new AmcpAbortedError(spec.action_type, spec.target_resource.ref, 'host-unwitnessed');
+    }
+    if (resp.host_signature !== undefined && this.witnessVerifier !== undefined) {
+      const payload = witnessPayload(resp.seq, resp.host_ts, resp.previous_hash, resp.record_hash);
+      if (!this.witnessVerifier(resp.host_key_id ?? '', resp.host_signature, payload)) {
+        await this.transport.sendOutcome(
+          this.stamp({ ...base, outcome: 'aborted', reason: 'host-signature-invalid' }),
+        );
+        throw new AmcpAbortedError(spec.action_type, spec.target_resource.ref, 'host-signature-invalid');
+      }
     }
 
     // Polluted Stop (§7.2): MUST under L2 (signer present), OPTIONAL under L1. Recompute

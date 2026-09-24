@@ -34,8 +34,6 @@ The protocol provides detective control, not preventive control. The host acts a
 
 The TypeScript and Python reference implementations validate against the **same** language-neutral schemas and conformance vectors. The JSON Canonicalization Scheme (RFC 8785) mandated by the specification is what makes this checkable: two conformant implementations reproduce the cryptographic hashes and ledger digests byte-for-byte, and the vectors are how either one is held to it.
 
-> **The reference implementations under `reference/` are aligned to v0.2 and have not been updated to v0.3.** The `spec/` artifacts are the v0.3 ones; running the demos below against them will fail on the changed digests until the ports are updated. See [CHANGELOG.md](CHANGELOG.md).
-
 ### Running the Conformance Demos
 
 To verify the cross-language byte-for-byte conformance and see the integrity enforcement in action:

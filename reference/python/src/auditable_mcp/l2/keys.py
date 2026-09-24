@@ -19,6 +19,9 @@ SignatureAlg = Literal['Ed25519', 'ECDSA_P256_SHA256']
 PrivateKey = Ed25519PrivateKey | ec.EllipticCurvePrivateKey
 PublicKey = Ed25519PublicKey | ec.EllipticCurvePublicKey
 
+# §5.1: an entry's public key must be a key of the entry's algorithm.
+_KEY_TYPES: dict[str, type] = {'Ed25519': Ed25519PublicKey, 'ECDSA_P256_SHA256': ec.EllipticCurvePublicKey}
+
 
 @dataclass
 class ToolKey:
@@ -57,7 +60,21 @@ class KeyRegistry:
         self._keys: dict[str, RegisteredKey] = {}
 
     def register(self, key_id: str, public_key: PublicKey, alg: SignatureAlg) -> None:
-        """Register a public key and its algorithm under key_id."""
+        """Register a public key and its algorithm under key_id.
+
+        §5.1 requires a non-empty key_id and a public key of the entry's algorithm. An entry whose
+        key and algorithm disagree is refused here rather than carried to verification time, where
+        every event bound to it would be rejected `signature-invalid` - a forged signature, which is
+        a different fact from a misprovisioned registry.
+
+        Raises:
+            ValueError: The key_id is empty, or the key is not a key of `alg`.
+        """
+        if not key_id:
+            raise ValueError('a registry entry binds a non-empty key_id (§5.1)')
+        expected = _KEY_TYPES[alg]
+        if not isinstance(public_key, expected):
+            raise ValueError(f'a {alg} entry binds a {expected.__name__}, not a {type(public_key).__name__} (§5.1)')
         self._keys[key_id] = RegisteredKey(public_key=public_key, alg=alg)
 
     def get(self, key_id: str) -> RegisteredKey | None:

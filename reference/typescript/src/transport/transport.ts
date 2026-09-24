@@ -12,7 +12,17 @@ export type RejectReason = 'schema-invalid' | 'replay-detected' | 'signature-inv
 // record; do not proceed. unavailable = transient persistence failure; do not proceed. None
 // authorize the domain action: fail-closed governs record completeness, not authorization.
 export type AttemptResponse =
-  | { status: 'accept'; seq: number; record_hash: string; host_ts: string; previous_hash: string }
+  | {
+      status: 'accept';
+      seq: number;
+      record_hash: string;
+      host_ts: string;
+      previous_hash: string;
+      // The witness pair appears together or not at all (§7.1). A host declaring `none` returns
+      // neither; one declaring `host` returns both on every accept (§5.2).
+      host_signature?: string;
+      host_key_id?: string;
+    }
   | { status: 'reject'; reason: RejectReason }
   | { status: 'unavailable'; reason: 'internal-error'; retryable: true };
 

@@ -26,12 +26,29 @@ class AttemptResponse:
     previous_hash: str | None = None
     reason: str | None = None
     retryable: bool | None = None
+    # The witness pair appears together or not at all (§7.1). A host declaring `none` returns
+    # neither; one declaring `host` returns both on every accept (§5.2).
+    host_signature: str | None = None
+    host_key_id: str | None = None
 
 
-def accept(seq: int, record_hash: str, host_ts: str, previous_hash: str) -> AttemptResponse:
-    """Build an accept response carrying the fields the tool needs to recompute the record hash."""
+def accept(
+    seq: int,
+    record_hash: str,
+    host_ts: str,
+    previous_hash: str,
+    host_signature: str | None = None,
+    host_key_id: str | None = None,
+) -> AttemptResponse:
+    """Build an accept carrying what the tool needs to recompute the hash, and the witness if signed."""
     return AttemptResponse(
-        status='accept', seq=seq, record_hash=record_hash, host_ts=host_ts, previous_hash=previous_hash
+        status='accept',
+        seq=seq,
+        record_hash=record_hash,
+        host_ts=host_ts,
+        previous_hash=previous_hash,
+        host_signature=host_signature,
+        host_key_id=host_key_id,
     )
 
 

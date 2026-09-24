@@ -4,7 +4,7 @@ import { AuditHost } from '../host/auditHost.js';
 import { InProcessTransport } from '../transport/inProcess.js';
 import type { AttemptResponse, AuditTransport } from '../transport/transport.js';
 import type { AuditEvent } from '../schema/event.js';
-import { DEFAULT_L1_CAPABILITY, type NegotiationResult } from '../schema/capability.js';
+import { DEFAULT_L1_CAPABILITY, negotiateCapability, type NegotiationResult } from '../schema/capability.js';
 import { generateToolKey } from '../l2/keys.js';
 import { KeySigner } from '../l2/signing.js';
 
@@ -17,7 +17,7 @@ class StubTransport implements AuditTransport {
   readonly outcomes: AuditEvent[] = [];
   constructor(private readonly response: AttemptResponse) {}
   negotiate(): NegotiationResult {
-    return { required: DEFAULT_L1_CAPABILITY, satisfied: true };
+    return negotiateCapability(DEFAULT_L1_CAPABILITY, DEFAULT_L1_CAPABILITY);
   }
   async sendAttempt(): Promise<AttemptResponse> {
     return this.response;

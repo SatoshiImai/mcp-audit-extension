@@ -15,7 +15,7 @@ from auditable_mcp.canonical import has_unsafe_number
 from auditable_mcp.capability import DEFAULT_L1_CAPABILITY, AuditCapability, NegotiationResult, negotiate_capability
 from auditable_mcp.l2.keys import KeyRegistry
 from auditable_mcp.l2.signing import verify_event_signature
-from auditable_mcp.ledger import Ledger, SealedRecord
+from auditable_mcp.ledger import Ledger, WitnessSigner, SealedRecord
 from auditable_mcp.schema import validate_event
 from auditable_mcp.transport import AttemptResponse, accept, reject, unavailable
 
@@ -37,8 +37,22 @@ class AuditHost:
         partition: str,
         capability: AuditCapability = DEFAULT_L1_CAPABILITY,
         key_registry: KeyRegistry | None = None,
+        witness_signer: WitnessSigner | None = None,
     ) -> None:
-        """Initialize the host for a partition under the given capability and optional keys."""
+        """Initialize the host for a partition under the given capability and optional keys.
+
+        Raises:
+            ValueError: The capability declares `witness: "host"` without a signer, or declares
+                `none` while holding one. A host that declares it signs and then does not leaves
+                every record unwitnessed while its peers expect otherwise; a host that declares
+                `none` MUST NOT return the pair (§7.1), and holding a signer is the only way to
+                violate that, so both are refused at construction rather than at seal time.
+        """
+        if capability.witness == 'host' and witness_signer is None:
+            raise ValueError('a host declaring witness "host" requires a WitnessSigner (§5.2)')
+        if capability.witness == 'none' and witness_signer is not None:
+            raise ValueError('a host declaring witness "none" must not hold a WitnessSigner (§7.1)')
+        self._witness_signer = witness_signer
         self.ledger = Ledger(partition)
         # Test switch: simulate a persistence/durability failure; must fail closed.
         self.unavailable = False
@@ -164,12 +178,19 @@ class AuditHost:
                 IntegrityAnomaly(id=event['id'], kind='replay-detected', detail='id-replay: duplicate attempt id')
             )
             return reject('replay-detected')
-        sealed = self.ledger.append(event, self._next_host_ts())
+        sealed = self.ledger.append(event, self._next_host_ts(), self._witness_signer)
         self._accepted_attempts.add(event['id'])
         self._advance_seq(event)
         # Verifiable Accept (§7.1): return host-assigned fields the tool needs to reconstruct the
         # §8.2 preimage for Polluted Stop verification.
-        return accept(sealed.seq, sealed.record_hash, sealed.host_ts, sealed.previous_hash)
+        return accept(
+            sealed.seq,
+            sealed.record_hash,
+            sealed.host_ts,
+            sealed.previous_hash,
+            sealed.host_signature,
+            sealed.host_key_id,
+        )
 
     def handle_outcome(self, event: object) -> None:
         """Append an outcome, flagging an outcome that has no accepted attempt or follows a reject."""
@@ -208,7 +229,7 @@ class AuditHost:
             # Each correlated outcome is sealed, not de-duplicated (§8.3). This reference imposes no
             # cap on outcomes per id; §8.3 makes that bound a host/SDK responsibility, so picking a
             # number here would be an arbitrary policy the spec deliberately leaves open.
-            self.ledger.append(event, self._next_host_ts())
+            self.ledger.append(event, self._next_host_ts(), self._witness_signer)
             self._advance_seq(event)
             return
         if event['id'] in self._rejected_ids:

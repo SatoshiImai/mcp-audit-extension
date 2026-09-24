@@ -12,10 +12,10 @@ from datetime import UTC, datetime
 from typing import Protocol, TypeVar
 
 from auditable_mcp.canonical import hash_canonical
-from auditable_mcp.ledger import compute_record_hash
+from auditable_mcp.ledger import compute_record_hash, witness_payload
 from auditable_mcp.transport import AuditTransport
 
-SPEC_VERSION = 'auditable-mcp/0.2'
+SPEC_VERSION = 'auditable-mcp/0.3'
 _BASE_EPOCH_SECONDS = 1000
 
 T = TypeVar('T')
@@ -62,6 +62,14 @@ class DeterministicDeps:
         return moment.strftime('%Y-%m-%dT%H:%M:%S.000Z')
 
 
+class WitnessVerifier(Protocol):
+    """Resolves a `host_key_id` and verifies a witness signature over the host-assigned fields."""
+
+    def __call__(self, host_key_id: str, signature: str, payload: str) -> bool:
+        """Return True only if the signature verifies against the key the registry binds (§11.4)."""
+        ...
+
+
 class AmcpSession:
     """Wraps internal operations in the audit-before-act lifecycle.
 
@@ -69,13 +77,31 @@ class AmcpSession:
     """
 
     def __init__(
-        self, transport: AuditTransport, call_id: str, deps: DeterministicDeps, signer: EventSigner | None = None
+        self,
+        transport: AuditTransport,
+        call_id: str,
+        deps: DeterministicDeps,
+        signer: EventSigner | None = None,
+        witness_verifier: WitnessVerifier | None = None,
+        require_witness: bool = False,
     ) -> None:
-        """Bind the session to a transport, a parent call id, id/time deps, and optional signer."""
+        """Bind the session to a transport, a parent call id, id/time deps, and optional signer.
+
+        A tool that declares `witness: "host"` (§5.2) requires every accept to carry a signature it
+        can verify, so `require_witness` needs a verifier: without one the tool would abort every
+        action on a host that is signing correctly.
+
+        Raises:
+            ValueError: `require_witness` was set without a verifier.
+        """
+        if require_witness and witness_verifier is None:
+            raise ValueError('require_witness needs a WitnessVerifier (§7.2, §11.3)')
         self._transport = transport
         self._call_id = call_id
         self._deps = deps
         self._signer = signer
+        self._witness_verifier = witness_verifier
+        self._require_witness = require_witness
 
     def _stamp(self, event: dict) -> dict:
         """Sign the event if a signer is present (L2), else return it unchanged (L1)."""
@@ -119,6 +145,18 @@ class AmcpSession:
             reason = 'host-rejected' if response.status == 'reject' else 'host-unavailable'
             self._abort(base, attempt['id'], reason)
             raise AmcpAbortedError(action_type, target_resource['ref'], reason)
+        # §7.2 evaluates in precedence order: the response's status above, then the witness
+        # signature that authenticates the host-assigned fields, then the hash computed over them.
+        # The reason is sealed into the ledger and compared across implementations, so the order is
+        # not incidental.
+        if self._require_witness and response.host_signature is None:
+            self._abort(base, attempt['id'], 'host-unwitnessed')
+            raise AmcpAbortedError(action_type, target_resource['ref'], 'host-unwitnessed')
+        if response.host_signature is not None and self._witness_verifier is not None:
+            payload = witness_payload(response.seq, response.host_ts, response.previous_hash, response.record_hash)
+            if not self._witness_verifier(response.host_key_id or '', response.host_signature, payload):
+                self._abort(base, attempt['id'], 'host-signature-invalid')
+                raise AmcpAbortedError(action_type, target_resource['ref'], 'host-signature-invalid')
         # Polluted Stop (§7.2): MUST under L2 (signer present), OPTIONAL under L1. Recompute
         # record_hash over the attempt bytes; mismatch means the host sealed a different record.
         if self._signer is not None:

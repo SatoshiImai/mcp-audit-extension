@@ -4,7 +4,7 @@ import { z } from 'zod/v4';
 // (signer_seq/key_id/signature) are optional, so an L2 event also validates as an L1 event; an
 // unsigned L1 event is rejected by an L2 host (§7.4).
 
-export const SPEC_VERSION = 'auditable-mcp/0.2';
+export const SPEC_VERSION = 'auditable-mcp/0.3';
 
 // Tool-internal events emit only attempted/success/failed/aborted; denied/expired are
 // host tools/call-boundary outcomes.
@@ -34,7 +34,11 @@ export const auditEventSchema = z.strictObject({
   outcome: z.enum(OUTCOME),
   // The Tier-1 abort code on an `aborted` outcome (§7.6). Pinned so the sealed reason vocabulary is
   // closed; domain-specific failure detail belongs in action_context, not here.
-  reason: z.enum(['hash-mismatch', 'host-rejected', 'host-unavailable']).optional(),
+  // §7.6 Tier-1 abort codes. The witness axis adds two: a record no distinct party
+  // confirmed, and one whose witness signature did not verify (§5.2, §7.2).
+  reason: z
+    .enum(['hash-mismatch', 'host-rejected', 'host-unavailable', 'host-unwitnessed', 'host-signature-invalid'])
+    .optional(),
 
   // --- audit context (confidentiality is the tool's choice; §4.3) ---
   // action_context: cleartext metadata about the internal operation, redacted at the tool's

@@ -8,7 +8,7 @@ import type { AuditEvent } from '../schema/event.js';
 function attempt(overrides: Partial<AuditEvent> = {}): AuditEvent {
   return {
     id: '00000000-0000-4000-8000-000000000001',
-    spec_version: 'auditable-mcp/0.2',
+    spec_version: 'auditable-mcp/0.3',
     ts: new Date(1_000_000).toISOString(),
     call_id: 'call_abc',
     action_type: 'db.write',
