@@ -30,6 +30,10 @@ Makes the extension real on the MCP wire and separates who recorded a chain from
 - **§6.1** also states the negotiation rule for the witness axis, whose polarity is reversed: on `level` the tool produces and the host requires, on `witness` the host produces and the tool requires, so a host declaring `self` fails the comparison against a tool requiring `host` at `initialize` rather than aborting every call at runtime. **§6.1** states the identifier/version split: the identifier names the extension, `spec_version` names the wire version. Below 1.0 the [SEP-2133] breaking-change rule is discharged through `spec_version`, which is REQUIRED in the settings object and compared at negotiation, so an older peer fails to negotiate visibly rather than misbehaving. A new identifier will be minted at or after 1.0.
 - **§11.2** adds Witness Signing; **§11.3** adds Witness Enforcement and Degradation. **§12.1** binds a host's witness-signing key under the same algorithm registry shape as a tool's.
 
+### Editorial
+
+- **All-capital `NOT` no longer appears outside a BCP 14 keyword.** Six sites - five of them predating v0.3 - used `NOT` alone for emphasis. [RFC-8174] gives the listed key words their meaning "when, and only when, they appear in all capitals", and `NOT` alone is not among them, so the emphasis read as normative force the text never intended. Each is now italicised, matching the emphasis the document already uses. No requirement changes.
+
 ### Backward compatibility
 
 - **The witness axis does not move `record_hash`.** The witness signature is computed over the host-assigned fields and stored beside them, outside the §8.2 preimage, so a chain sealed with one and the same chain sealed without one hash identically, and chains sealed under an earlier version verify unchanged.
