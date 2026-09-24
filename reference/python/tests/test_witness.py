@@ -99,3 +99,49 @@ def test_the_witness_preimage_is_the_host_assigned_fields_alone() -> None:
     payload = witness_payload(0, '2026-07-15T00:00:01.000Z', '0' * 64, 'a' * 64)
     assert payload.startswith('{"host_ts":')
     assert 'signature' not in payload
+
+
+def test_a_verifier_without_the_registry_says_the_witness_was_not_checked() -> None:
+    """§11.4: an unchecked signature and a valid one are not the same finding."""
+    from auditable_mcp.verify import verify_ledger
+
+    host = AuditHost('t#w', _WITNESSING, witness_signer=_Signer())
+    _run(AmcpSession(InProcessTransport(host), 'call-1', DeterministicDeps()))
+    report = verify_ledger(host.records())
+    assert report.ok
+    assert report.unchecked == ['witness']
+    assert report.complete is False
+
+
+def test_a_verifier_with_the_registry_determines_the_witness() -> None:
+    """§11.4: the witness is established from the record's own signature, never inferred."""
+    from auditable_mcp.verify import verify_ledger
+
+    host = AuditHost('t#w', _WITNESSING, witness_signer=_Signer())
+    _run(AmcpSession(InProcessTransport(host), 'call-1', DeterministicDeps()))
+    report = verify_ledger(host.records(), None, _verifier)
+    assert report.complete is True
+
+
+def test_an_unwitnessed_chain_is_complete_without_a_checker() -> None:
+    """A record carrying no signature is unwitnessed, which is a state and not an anomaly (§5.2)."""
+    from auditable_mcp.verify import verify_ledger
+
+    host = AuditHost('t#d')
+    _run(AmcpSession(InProcessTransport(host), 'call-1', DeterministicDeps()))
+    assert verify_ledger(host.records()).complete is True
+
+
+def test_a_witness_signature_that_does_not_verify_is_reported() -> None:
+    """§11.4: present and failing is `host-signature-invalid`, distinct from unwitnessed."""
+    from auditable_mcp.verify import verify_ledger
+
+    class _Forger(_Signer):
+        def sign(self, payload: str) -> str:
+            return base64.b64encode(b'not-the-host').decode('ascii')
+
+    host = AuditHost('t#w', _WITNESSING, witness_signer=_Forger())
+    _run(AmcpSession(InProcessTransport(host), 'call-1', DeterministicDeps()))
+    report = verify_ledger(host.records(), None, _verifier)
+    assert not report.ok
+    assert all(issue.kind == 'host-signature-invalid' for issue in report.issues)

@@ -3,6 +3,7 @@ import { AmcpAbortedError, AmcpSession, type AmcpDeps } from '../tool/amcp.js';
 import { AuditHost } from './auditHost.js';
 import { InProcessTransport } from '../transport/inProcess.js';
 import { witnessPayload } from '../ledger/ledger.js';
+import { verifyLedger } from '../verify/verify.js';
 import { DEFAULT_L1_CAPABILITY, type AuditCapability } from '../schema/capability.js';
 
 // The witness axis (§5.2): what a record carries, and what the tool does about it (§7.1, §7.2).
@@ -85,5 +86,36 @@ describe('the witness axis (§5.2)', () => {
     const payload = witnessPayload(0, '2026-07-15T00:00:01.000Z', '0'.repeat(64), 'a'.repeat(64));
     expect(payload.startsWith('{"host_ts":')).toBe(true);
     expect(payload.includes('signature')).toBe(false);
+  });
+});
+
+describe('verifier conformance for the witness (§11.4)', () => {
+  it('a verifier without the registry says the witness was not checked', async () => {
+    const host = new AuditHost('t#w', WITNESSING, undefined, signer);
+    await run(new AmcpSession(new InProcessTransport(host), 'call-1', new Deps()));
+    const report = verifyLedger(host.records());
+    expect(report.ok).toBe(true);
+    expect(report.unchecked).toEqual(['witness']);
+    expect(report.complete).toBe(false);
+  });
+
+  it('a verifier with the registry determines the witness', async () => {
+    const host = new AuditHost('t#w', WITNESSING, undefined, signer);
+    await run(new AmcpSession(new InProcessTransport(host), 'call-1', new Deps()));
+    expect(verifyLedger(host.records(), undefined, verify).complete).toBe(true);
+  });
+
+  it('an unwitnessed chain is complete without a checker', async () => {
+    const host = new AuditHost('t#d');
+    await run(new AmcpSession(new InProcessTransport(host), 'call-1', new Deps()));
+    expect(verifyLedger(host.records()).complete).toBe(true);
+  });
+
+  it('a witness signature that does not verify is reported', async () => {
+    const host = new AuditHost('t#w', WITNESSING, undefined, forger);
+    await run(new AmcpSession(new InProcessTransport(host), 'call-1', new Deps()));
+    const report = verifyLedger(host.records(), undefined, verify);
+    expect(report.ok).toBe(false);
+    expect(report.issues.every((i) => i.kind === 'host-signature-invalid')).toBe(true);
   });
 });

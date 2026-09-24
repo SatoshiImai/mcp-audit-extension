@@ -62,6 +62,11 @@ Makes the extension real on the MCP wire and separates who recorded a chain from
   regenerates the committed JSON Schemas from its Zod source of truth.
 - The reference ports seal synchronously, so §7.1's atomic sealing and §7.4's atomic numbering hold
   by construction rather than by a lock; both say so where the seal happens.
+- **Every §11 conformance item is met or explained.** The verifiers determine the witness from the
+  record's own signature and report `unchecked` when the registry was not supplied (§11.4), and the
+  tools carry the §6.2 postures. §11.4's Identity Matching is conditional on a deployment that binds
+  identity (§10.10); these demonstrations are single-principal, and both say so where a reader
+  auditing them would look.
 
 ## v0.2 - 2026-07-25
 
