@@ -1,6 +1,6 @@
 # Auditable MCP
 
-- **Status:** Draft proposal
+- **Status:** Draft proposal. Experimental below 1.0: the wire contract may change between draft revisions, signalled by `spec_version` (§6.1).
 - **Version:** `auditable-mcp/0.3`
 - **Author:** Satoshi Imai
 - **License:** MIT
@@ -12,7 +12,7 @@
 Auditable MCP is a proposed extension to the Model Context Protocol (MCP). It defines a mechanism for an MCP tool server to self-attest its internal domain operations, such as database transactions and downstream API requests executed within a tool call. These operations are emitted as structured audit events, which the host subsequently records in a tamper-evident ledger.
 While existing MCP auditing capabilities are limited to the orchestrator-visible call boundary, this extension addresses the unobservable interior by relying on the tool's self-attestation. This protocol is complementary to SEP-3004 (Tamper-Evident Audit Record Contract) [SEP-3004].
 
-Two properties shape how it is adopted. A tool that speaks this extension remains usable by hosts that do not: where the extension was not negotiated, the tool sends no audit message and serves the call as an ordinary MCP tool, under one of two named postures (§6.2). And a record states who recorded it: a host that confirms sealing signs for having done so, so a verifier can tell a chain a distinct host confirmed from one a tool recorded for itself (§5.2).
+Two properties shape how it is adopted. A tool that speaks this extension remains usable by hosts that do not: where the extension was not negotiated, the tool sends no audit message and serves the call as an ordinary MCP tool, under one of two named postures (§6.2). A record also states who recorded it: a host that confirms sealing signs for having done so, so a verifier can tell a chain a distinct host confirmed from one a tool recorded for itself (§5.2).
 
 ## 1. Motivation
 
