@@ -266,6 +266,14 @@ Upon receiving an `audit/attempt` event, the host MUST perform the following val
 If validation passes, the host seals the record into the ledger (§8) and replies with `status: "accept"` and the host-assigned `seq`, `host_ts`, `previous_hash`, and `record_hash` (see Verifiable Accept below).
 If validation fails, or if the host suffers a persistence failure, it replies with `status: "reject"` or `status: "unavailable"`, respectively.
 
+**Atomic sealing.** A host MUST assign `seq` and `previous_hash`, seal the record, and commit it to the partition's chain atomically with respect to every other record being sealed into the same partition (§10.5). Two seals that interleave read the same chain tail, and the host issues two records claiming the same predecessor and the same `seq` - a broken chain it has already answered `accept` for twice, so the operations it cleared proceed on records the ledger cannot hold. The obligation falls on the host because no other party can detect the condition: each `accept` is individually well-formed and passes Polluted Stop (§7.2), and the break surfaces only later, to a verifier reading the chain (§11.4). Stated as the ledger shows it: no two records in one partition may carry the same `seq`, and none may carry the same `previous_hash` as another.
+
+This constrains the property, not the mechanism. A host MAY serialize seals with a per-partition lock, elect a single writer per partition, or commit under an isolation level that aborts and retries a seal that interfered with another. A host that cannot complete a seal atomically has not recorded the event and MUST reply `unavailable` rather than seal it anyway; failing to record is a state this protocol already carries (§7.2), and a chain break is not. Nothing here constrains ordering *across* partitions, nor which of several concurrent attempts takes the earlier position - only that they take different ones, linked in the order they took them. Where an order is already pinned, it still holds: the notifications in an `audit/outcome` batch are sealed in array order (§8.3).
+
+Nothing here constrains the tool. §6 makes an `audit/attempt` blocking for the operation that sent it; a tool MAY have several operations in flight, and a host that seals atomically serves them all. Their records are ordered; their operations are not.
+
+A log that answers a submission with a promise rather than a position can defer this. [RFC-9162] returns a Signed Certificate Timestamp and allocates the tree index later, within its Maximum Merge Delay, and [SCITT] states the append-only property of the verifiable data structure without constraining how concurrent registrations reach it. Auditable MCP cannot defer it: the Verifiable Accept hands the tool its position at the moment of the reply, because the tool reconstructs the preimage from `seq` and `previous_hash` to perform Polluted Stop (§7.2) *before* it acts. A protocol that returns the position owes the guarantee that the position is the record's own.
+
 **Verifiable Accept:** On an `accept` response, the host MUST return the full set of host-assigned fields required for the tool to reconstruct the hash preimage (§8.2): `seq`, `host_ts`, `previous_hash`, and the resulting `record_hash`. Without these, the tool cannot perform the mandatory Polluted Stop verification (§7.2).
 
 **Witness signature (witness `host`).** A host that declares `witness: "host"` (§5.2) MUST additionally return `host_signature`, a detached signature over the RFC 8785 canonical form (§8.1) of the accept's host-assigned fields
@@ -484,7 +492,7 @@ An `aborted` outcome that references a rejected or never-accepted attempt is the
 
 ### 10.5 Partition Isolation and Sequence Scoping
 
-A partition (§3) is a host-side isolation boundary. A host MUST maintain a separate hash chain, `seq` counter, `signer_seq` tracker, and anomaly set per partition; records, sequences, and anomalies MUST NOT cross partitions, and a partition's chain is verifiable only against its own genesis.
+A partition (§3) is a host-side isolation boundary. A host MUST maintain a separate hash chain, `seq` counter, `signer_seq` tracker, and anomaly set per partition; records, sequences, and anomalies MUST NOT cross partitions, and a partition's chain is verifiable only against its own genesis. That separation is spatial; its temporal counterpart is the atomic sealing of §7.1, without which two concurrent seals may take the same position in one partition's chain.
 
 The host-assigned `seq` is per-partition, but a tool's Level-2 `signer_seq` is per `key_id` (§4, §7.4). If a tool reuses one signing key across partitions, that key's single monotonic `signer_seq` is interleaved across the partitions' independent ledgers, so a host or auditor examining one partition observes forward gaps for events the tool emitted to other partitions. Such a gap is benign and does not by itself indicate suppression; a host or auditor correlating events across partitions (by `key_id`) can distinguish it from a genuine gap. Accordingly, §7.4 makes `signer_seq` gap detection authoritative only when a `key_id` is bound to a single partition and advisory otherwise; replay detection remains authoritative in every configuration.
 
@@ -565,6 +573,7 @@ A conformant Host MUST:
 - **Verifiable Accept:** Return `seq`, `host_ts`, and `previous_hash` alongside `record_hash` in the `accept` response (§7.1).
 - **Witness Signing:** If it declares `witness: "host"` (§5.2), sign the host-assigned fields of every sealed record - attempt and outcome alike - and persist `host_signature` and `host_key_id` with it; return both in the `accept` response for an attempt, which is the only record kind with a response channel (§7.1, §7.2).
 - **Ledger Validation:** Perform the mandatory schema, numeric canonicalization-domain (§8.1), and attempt `id`-uniqueness (both levels), plus `signer_seq` and signature (Level 2), validations before sealing (§7.1); fail closed on integrity violations.
+- **Atomic Sealing:** Assign `seq` and `previous_hash`, seal, and commit atomically with respect to any other record being sealed into the same partition, so that two concurrent attempts never take the same position (§7.1, §10.5).
 - **Receive-boundary Numeric Enforcement:** Reject a number outside the canonicalization domain at ingestion, before a lossy native parse can corrupt it (§8.1).
 - **Anomaly Flagging:** Flag (without rejecting) a forward `signer_seq` gap (`signer-seq-gap`) where the `key_id` is partition-bound (§7.4) and any orphaned `success` or `failed` outcome (`orphaned-outcome`) that references no accepted attempt (§7.2, §7.6).
 - **Code Vocabulary:** Use the Tier-1 reason codes for control-flow rejects and the Tier-1 anomaly kinds for cross-implementation ledger inspection, exactly as specified (§7.6).
@@ -650,6 +659,7 @@ For example, `example.com/rows-exceeded`. Because every Tier-2 code contains a `
 - **[RFC-8126]** Cotton, M., Leiba, B., and T. Narten, "Guidelines for Writing an IANA Considerations Section in RFCs", BCP 26, RFC 8126, June 2017.
 - **[W3C-Trace-Context]** W3C, "Trace Context", W3C Recommendation.
 - **[SCITT]** IETF SCITT Working Group, "An Architecture for Trustworthy and Transparent Digital Supply Chains", draft-ietf-scitt-architecture.
+- **[RFC-9162]** Laurie, B., Messeri, E., and R. Stradling, "Certificate Transparency Version 2.0", RFC 9162, December 2021.
 - **[C2SP]** Community Cryptography Specification Project, "tlog-witness", <https://c2sp.org/tlog-witness>.
 - **[NIST-SP-800-53]** National Institute of Standards and Technology, "Security and Privacy Controls for Information Systems and Organizations", SP 800-53 Rev. 5, control AU-5.
 - **[OTel-GenAI]** OpenTelemetry, "Semantic Conventions for Generative AI Systems".
