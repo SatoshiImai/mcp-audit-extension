@@ -152,14 +152,16 @@ The `signature` field MUST be the standard base64 encoding (with padding, [RFC-4
 
 A Level-2 chain sealed by a tool acting as its own host is strongly signed and independently unconfirmed; a Level-1 chain sealed by a separate host is weakly signed and independently confirmed. These are different properties, so this specification keeps them on separate axes rather than folding one into the other.
 
-The **witness** axis states who sealed a record:
+The **witness** axis states what a record carries, not who the parties were:
 
-| Witness | Meaning                                                                                                                                                                     |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `self`  | The tool and the host are the same party - it issued and recorded the chain. The chain establishes internal consistency only (§10.2). This is the degraded posture of §6.2. |
-| `host`  | A host distinct from the tool sealed each record and returned a **witness signature** over it, made with a key the verifier's registry binds to that host (§7.1).           |
+| Witness signature      | What the record establishes                                                                                                                                                                                                                              |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| absent                 | Only the tool's own attestation stands behind the record (§10.2). Whether a separate host sealed it and declined to sign, or the tool acted as its own host (§6.2), is not determinable from the record - and the record establishes no more either way. |
+| present, and verifying | The host named by `host_key_id` confirmed sealing this record with a **witness signature** over it, made with a key the verifier's registry binds to that host (§7.1).                                                                                   |
 
-**A witness is established per record, by evidence, never by declaration.** A record is host-witnessed when it carries a `host_signature` that verifies against the `host_key_id`'s registry entry, and self-witnessed otherwise. A self-hosting tool cannot manufacture the host-witnessed state, because it holds no key the verifier's registry binds to a host. This holds as long as the tool does not control the verifier's registry. Where one operator controls both, the distinction is administrative rather than cryptographic and §10.2 applies to the whole chain; separating registry control from tool operation is the deployment condition under which the witness axis is evidence.
+The capability values `none` and `host` (§6.1) declare which of these a participant provides or requires. They are declarations of policy; the record's own state is the row above, and a verifier reads it from the record alone (§11.4).
+
+**A witness is established per record, by evidence, never by declaration.** A record is host-witnessed when it carries a `host_signature` that verifies against the `host_key_id`'s registry entry, and is unwitnessed otherwise. A tool cannot manufacture the host-witnessed state, because it holds no key the verifier's registry binds to a host. This holds as long as the tool does not control the verifier's registry. Where one operator controls both, the distinction is administrative rather than cryptographic and §10.2 applies to the whole chain; separating registry control from tool operation is the deployment condition under which the witness axis is evidence.
 
 A participant declares its position on this axis in the capability object (§6.1): a host declares `host` when it signs, and a tool declares `host` when it requires a signature. The declaration tells each side what to expect; it is not evidence. A tool that requires a witness enforces the requirement at runtime (§7.2), exactly as a host enforces the level at runtime (§7.1).
 
@@ -202,16 +204,16 @@ The value at that key is the capability object, serving as this extension's [SEP
 
 The host enforces its own required `level` at runtime (§7) regardless of what the tool offers: when the host requires Level 1 and the tool offers Level 2, the host still validates only at Level 1 (it does not demand signatures); when the host requires Level 2, the host validates every event at Level 2. The offered level only decides whether the connection is admitted (below).
 
-**The witness axis runs the other way.** On the `level` axis the tool produces and the host requires; on the `witness` axis (§5.2) the host produces and the tool requires. A host declaring `host` offers to sign; a tool declaring `host` requires that it be signed. A host declaring `self` therefore cannot satisfy a tool that requires `host`, and that is knowable at `initialize` rather than one call at a time: the comparison fails, exactly as a level shortfall does. A tool declaring `self` imposes no requirement, and a host declaring `host` signs whatever the tool asked for.
+**The witness axis runs the other way.** On the `level` axis the tool produces and the host requires; on the `witness` axis (§5.2) the host produces and the tool requires. A host declaring `host` offers to sign; a tool declaring `host` requires that it be signed. A host declaring `none` therefore cannot satisfy a tool that requires `host`, and that is knowable at `initialize` rather than one call at a time: the comparison fails, exactly as a level shortfall does. A tool declaring `none` imposes no requirement, and a host declaring `host` signs whatever the tool asked for.
 
 The capability object declares the operational parameters of the audit subsystem. `spec_version`, `level`, `attempt`, and `witness` are all REQUIRED.
 
-| Field          | Type   | Presence | Notes                                                                                                                                                                                                                                                  |
-| -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `spec_version` | string | REQUIRED | The Auditable MCP version the participant supports (e.g., `auditable-mcp/0.3`). Enables a cross-version handshake, since events carry `spec_version` (§4) but negotiation must establish a common version first.                                       |
-| `level`        | string | REQUIRED | MUST be `"L1"` or `"L2"`. The negotiated assurance level.                                                                                                                                                                                              |
-| `attempt`      | string | REQUIRED | MUST be `"request"`. `audit/attempt` is a blocking, fail-closed request. A single permitted value in this version; it is a forward-compatibility placeholder reserving the field for a future non-blocking mode.                                       |
-| `witness`      | string | REQUIRED | MUST be `"self"` or `"host"` (§5.2). A host declares `"host"` when it signs; a tool declares `"host"` when it requires a signature. Unlike `level`, the obligation on this axis falls on the host, so the roles of requirement and offer are reversed. |
+| Field          | Type   | Presence | Notes                                                                                                                                                                                                                                                                                                                   |
+| -------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spec_version` | string | REQUIRED | The Auditable MCP version the participant supports (e.g., `auditable-mcp/0.3`). Enables a cross-version handshake, since events carry `spec_version` (§4) but negotiation must establish a common version first.                                                                                                        |
+| `level`        | string | REQUIRED | MUST be `"L1"` or `"L2"`. The negotiated assurance level.                                                                                                                                                                                                                                                               |
+| `attempt`      | string | REQUIRED | MUST be `"request"`. `audit/attempt` is a blocking, fail-closed request. A single permitted value in this version; it is a forward-compatibility placeholder reserving the field for a future non-blocking mode.                                                                                                        |
+| `witness`      | string | REQUIRED | MUST be `"none"` or `"host"` (§5.2). `"host"` means records in this session carry a witness signature - a host declaring it will sign, a tool declaring it requires one. `"none"` means they do not. Unlike `level`, the obligation on this axis falls on the host, so the roles of requirement and offer are reversed. |
 
 When either participant's declared `spec_version` is not mutually supported, or a tool's declared `level` does not meet the host's requirement (e.g., the host requires Level 2 but the tool supports only Level 1), or the host's declared `witness` does not meet the tool's requirement, resolving the mismatch is an orchestrator or SDK implementation responsibility. The orchestrator MAY terminate the connection, or it MAY seek human-in-the-loop consent to admit the tool at a lower assurance level and record that decision in its allowlist. Whatever the orchestrator decides, the session is unnegotiated until a comparison succeeds, so §6.2 governs the tool: it sends no audit message in the meantime.
 
@@ -219,7 +221,7 @@ A tool might falsely declare a higher capability than it possesses. The protocol
 
 ### 6.2 Graceful degradation
 
-[SEP-2133] requires that where one party supports an extension and the other does not, the supporting party either reverts to core protocol behavior or, for a mandatory extension, refuses the connection, and that an extension document its expected fallback. This section is that document.
+Where one party supports an extension and the other does not, [SEP-2133] requires (MUST) that the supporting party either revert to core protocol behavior or, for a mandatory extension, reject the request, and recommends (SHOULD) that the extension document its expected fallback behavior. This section is that document.
 
 A session is **audit-negotiated** when both parties declared the extension identifier (§6.1) at `initialize` and the resulting capability comparison succeeded. Every other session is **unnegotiated**: the peer declared no `extensions` member, or declared other extensions but not this one, or declared it with a `spec_version`, `level`, or `witness` that does not fit (§6.1).
 
@@ -236,9 +238,9 @@ A session is **audit-negotiated** when both parties declared the extension ident
 
 **A tool in the degraded posture SHOULD make that state observable to its operator** - through a log record, a metric, a startup banner, or whatever channel the deployment already watches - so that the loss of the host's witness is noticed rather than merely discoverable after the fact. Alerting personnel, and deciding what else to do about an audit failure, is an organizational control rather than a protocol behavior ([NIST-SP-800-53] AU-5); this specification requires only that a tool not conceal the state from the operator who owns that control.
 
-The two postures correspond to the two branches AU-5(4) already recognizes: the degraded posture is the "alternate audit logging capability" whose existence excuses a shutdown, and the mandatory posture is the shutdown.
+AU-5(4) invokes a full shutdown, a partial shutdown, or a degraded operational mode on an audit logging failure, *unless an alternate audit logging capability exists*. The two postures here sit on opposite sides of that rule: the degraded posture is the alternate capability, and the mandatory posture is the invoked response. The word *degraded* is this specification's own and denotes continuing to serve; AU-5's "degraded operational mode" denotes reduced functionality, which is the opposite side of the same rule.
 
-**A tool MUST NOT serve a call while neither recording the internal operations nor reporting the omission.** That combination restores the opaque interior of §1 while the tool continues to advertise this extension to hosts that ask.
+**A tool MUST NOT take a third posture, in which it serves a call in an unnegotiated session, records nothing, and reports nothing about the omission.** That combination restores the opaque interior of §1 while the tool continues to advertise this extension to hosts that ask.
 
 **A self-hosted chain carries no independent confirmation.** A tool acting as its own host issues and records the same chain, so no record in it is confirmed by a second party; §10.2 governs what such a chain does and does not establish. A verifier establishes which of the two it is reading from the witness signature alone (§5.2, §11.4).
 
@@ -273,7 +275,7 @@ If validation fails, or if the host suffers a persistence failure, it replies wi
 
 together with the `host_key_id` identifying the signing key. The algorithm is bound to `host_key_id` by a registry of the same normative shape as §5.1's, provisioned out-of-band; the same algorithm identifiers and the same standard-base64 encoding apply. This signature preimage carries no signature field, so there is no self-reference, and it is not part of the §8.2 record-hash preimage: a record sealed with a witness signature and the same record sealed without one have the same `record_hash`.
 
-A host that signs MUST persist `host_signature` and `host_key_id` alongside the sealed record, so a verifier reading the ledger later establishes the witness (§5.2) without the live exchange.
+A host that declares `witness: "none"` MUST NOT return `host_signature` or `host_key_id`. The response schema cannot enforce this, because the response does not carry the negotiated capability; it is a host obligation (§11.2). A host that signs MUST persist `host_signature` and `host_key_id` alongside the sealed record, so a verifier reading the ledger later establishes the witness (§5.2) without the live exchange.
 
 **Attempt Response.** The host's reply to the `audit/attempt` JSON-RPC request is a JSON object forming a tagged union discriminated on `status`. Its normative schema is [`schema/audit-attempt-response.schema.json`](schema/audit-attempt-response.schema.json).
 
@@ -371,7 +373,7 @@ Anomaly kinds (a verifier reads these from a possibly foreign ledger):
 | `signature-invalid`      | A sealed Level-2 record carries a signature that fails verification (§7.4).                                                                                                                                  |
 | `orphaned-outcome`       | A `success` or `failed` outcome references no accepted attempt - never accepted, or after its attempt was rejected (§7.2).                                                                                   |
 | `unreported-egress`      | Governance-boundary reconciliation saw an out-of-governance egress with no correlated self-reported event (§7.5, §10.2).                                                                                     |
-| `host-signature-invalid` | A sealed record carries a `host_signature` that fails verification against the registered host key (§5.2). The absence of a signature is *not* an anomaly - it is the `self` witness state.                  |
+| `host-signature-invalid` | A sealed record carries a `host_signature` that fails verification against the registered host key (§5.2). The absence of a signature is *not* an anomaly; an unwitnessed record is a state.                 |
 | `principal-mismatch`     | A sealed record's bound identity does not match the principal its partition is expected to hold, or it carries no binding where the deployment requires one (§10.10).                                        |
 
 The Tier-1 set is a closure: every reject, unavailable, abort, and anomaly condition this specification defines maps to exactly one Tier-1 code, so an implementation always has a safe, interoperable code to emit. **Every code-valued field on the wire or in the ledger is pinned to Tier-1.** Specifically: the Attempt Response `reason` is pinned by its schema to the Tier-1 reject codes plus `internal-error` for `unavailable` (`schema/audit-attempt-response.schema.json`); the sealed outcome-event `reason` is pinned by its schema to the Tier-1 abort codes (§7.2, `schema/audit-event.schema.json`); and every anomaly `kind` a conformant verifier reports is a Tier-1 anomaly code. None carries an additional free-form field (the wire schemas are `additionalProperties: false`).
@@ -439,6 +441,9 @@ SEP-3004 defines a tamper-evident audit record contract at the orchestrator-visi
 
 **SCITT (Supply Chain Integrity, Transparency and Trust)**
 SCITT registers Signed Statements in a Transparency Service and returns a Receipt, a proof of inclusion in a verifiable data structure [SCITT]. A witness signature (§5.2, §7.1) is deliberately not called a Receipt and is not one: it attests that a named host sealed a record at a stated position in a chain, not that the record is included in a published, independently auditable structure. A deployment that wants the stronger property anchors its tail digest (§8.3) into such a structure; this specification does not define that binding.
+
+**Transparency-log witnesses**
+In transparency-log vocabulary - [C2SP] `tlog-witness`, and Sigsum - a witness is a party independent of the log operator that cosigns what the operator published. Here the confirming party is the operator of the ledger itself: *witness* names the relationship between the tool and the host, not an independent third party. A deployment that wants the stronger, independent sense adds it outside this protocol, over the anchored tail digest (§8.3).
 
 **Cryptographic Ecosystems**
 The requirement for deterministic serialization (RFC 8785) prior to hashing and detached signing (§8) is adopted from established supply-chain security and transparency frameworks (e.g., Sigstore, in-toto). This protocol uses these standard primitives rather than defining custom cryptography for the MCP boundary.
@@ -520,7 +525,7 @@ A deployment that stores records for more than one principal in a shared medium 
 1. **Wrap in SEP-3004.** Seal each Auditable MCP record inside a SEP-3004 boundary record, whose protected core binds `principal_id` in the hashed bytes [SEP-3004], and check that `principal_id` against the principal the partition is expected to hold.
 2. **Bind inside the sealed record.** Carry the host-assigned identity in the record as sealed, so that it falls inside the record hash, and check it against the same expectation.
 
-Either way, the expectation is supplied out-of-band. It is an input to verification, never a value read from the artifact under verification: a transplanted record carries its own identity with it, so an expectation taken from that record would always match it. A record whose bound identity does not match the expectation, or which carries no binding where the deployment requires one, is flagged `principal-mismatch` (§7.6). The absent case fails closed: an unbound record cannot be shown to belong where it was found.
+Either way, the expectation MUST be supplied out-of-band. It is an input to verification, never a value read from the artifact under verification: a transplanted record carries its own identity with it, so an expectation taken from that record would always match it. A record whose bound identity does not match the expectation, or which carries no binding where the deployment requires one, is flagged `principal-mismatch` (§7.6). The absent case fails closed: an unbound record cannot be shown to belong where it was found.
 
 A single-principal deployment needs neither construction, and this specification does not add an identity field to §4 for it. Identity belongs to the layer that owns the storage boundary, and an optional field in the event would let an implementation satisfy the schema without binding anything.
 
@@ -561,10 +566,15 @@ A conformant Tool MUST:
 
 A verifier reads a sealed ledger, possibly written by a different implementation, and reports anomalies (§7.6). A conformant Verifier MUST:
 
-- **Chain Recomputation:** Recompute each record's hash from the §8.2 preimage and its predecessor's `record_hash`, and report `record-hash-mismatch`, `seq-gap`, and `digest-mismatch` against an anchored tail digest (§8.3).
-- **Witness Determination:** Determine a record's witness (§5.2) by verifying `host_signature` against the `host_key_id`'s registry entry, and by nothing else. A record carrying no `host_signature` is `self`-witnessed, which is a state and not an anomaly; a signature that is present and fails verification is reported `host-signature-invalid`.
+- **Chain Recomputation:** Recompute each record's hash from the §8.2 preimage and its predecessor's `record_hash`, and report `record-hash-mismatch`, `seq-gap`, and, against an anchored tail digest, `digest-mismatch` (§8.3).
+- **Record Validation:** Report `schema-invalid` for a sealed record that fails structural or canonicalization-domain validation (§7.1, §8.1).
+- **Level-2 Validation:** Where records carry Level-2 fields, report `signature-invalid` for a signature that fails verification, and `signer-seq-gap` for a forward gap in a partition-bound `key_id` (§7.4, §10.5).
+- **Correlation:** Report `orphaned-outcome` for a `success` or `failed` outcome referencing no accepted attempt (§7.2).
+- **Witness Determination:** Determine a record's witness (§5.2) by verifying `host_signature` against the `host_key_id`'s registry entry. A verifier MUST NOT infer the witness from any other field. A record carrying no `host_signature` is unwitnessed, which is a state and not an anomaly; a signature that is present and fails verification is reported `host-signature-invalid`.
 - **Identity Matching:** Where the deployment binds identity (§10.10), compare each record's bound identity against an expectation supplied out-of-band, and report `principal-mismatch` on a mismatch or on a missing binding.
 - **Code Vocabulary:** Report anomalies using the Tier-1 anomaly kinds, exactly as specified (§7.6).
+
+`unreported-egress` is the one Tier-1 anomaly a verifier does not produce by reading a ledger: it arises from governance-boundary reconciliation against an independent observation (§7.5), which is outside this role.
 
 ## 12. Extensibility and Registries
 
@@ -619,6 +629,7 @@ For example, `example.com/rows-exceeded`. Because every Tier-2 code contains a `
 - **[RFC-8126]** Cotton, M., Leiba, B., and T. Narten, "Guidelines for Writing an IANA Considerations Section in RFCs", BCP 26, RFC 8126, June 2017.
 - **[W3C-Trace-Context]** W3C, "Trace Context", W3C Recommendation.
 - **[SCITT]** IETF SCITT Working Group, "An Architecture for Trustworthy and Transparent Digital Supply Chains", draft-ietf-scitt-architecture.
+- **[C2SP]** Community Cryptography Specification Project, "tlog-witness", <https://c2sp.org/tlog-witness>.
 - **[NIST-SP-800-53]** National Institute of Standards and Technology, "Security and Privacy Controls for Information Systems and Organizations", SP 800-53 Rev. 5, control AU-5.
 - **[OTel-GenAI]** OpenTelemetry, "Semantic Conventions for Generative AI Systems".
 - **[EU-AI-Act]** Regulation (EU) 2024/1689 (Artificial Intelligence Act), Article 12: Record-keeping.

@@ -19,7 +19,7 @@
     "witness": {
       "type": "string",
       "enum": [
-        "self",
+        "none",
         "host"
       ]
     }
