@@ -68,7 +68,9 @@
       "enum": [
         "hash-mismatch",
         "host-rejected",
-        "host-unavailable"
+        "host-unavailable",
+        "host-unwitnessed",
+        "host-signature-invalid"
       ]
     },
     "action_context": {

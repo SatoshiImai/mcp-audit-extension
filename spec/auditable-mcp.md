@@ -72,7 +72,7 @@ An event is a JSON object [RFC-8259]. Its normative schema is
 | `egress`              | boolean           | REQUIRED | Whether the operation crosses the logical data-governance boundary. §4.2.                                                                                                                                                              |
 | `target_resource`     | object            | REQUIRED | The operation's domain target (sub-fields below).                                                                                                                                                                                      |
 | `outcome`             | enum              | REQUIRED | `attempted` &#124; `success` &#124; `failed` &#124; `aborted` (§7.2).                                                                                                                                                                  |
-| `reason`              | string            | OPTIONAL | REQUIRED on an `aborted` outcome (enforced by schema): a Tier-1 abort code `hash-mismatch` &#124; `host-rejected` &#124; `host-unavailable` (§7.2, §7.6). SHOULD be omitted on other outcomes; domain detail goes in `action_context`. |
+| `reason`              | string            | OPTIONAL | REQUIRED on an `aborted` outcome (enforced by schema): a Tier-1 abort code `hash-mismatch` &#124; `host-rejected` &#124; `host-unavailable` &#124; `host-unwitnessed` &#124; `host-signature-invalid` (§7.2, §7.6). SHOULD be omitted on other outcomes; domain detail goes in `action_context`. |
 | `action_context`      | object            | OPTIONAL | Cleartext metadata about the internal operation, redacted at the tool's discretion (§4.3).                                                                                                                                             |
 | `action_context_hash` | string            | OPTIONAL | `sha256:<hex>` commitment to the exact internal context (§4.3).                                                                                                                                                                        |
 | `signer_seq`          | integer           | OPTIONAL | Level 2. Per-`key_id` monotonic signer counter (distinct from the host-assigned ledger `seq`, §7.1).                                                                                                                                   |
@@ -135,6 +135,8 @@ Both levels share one event schema; the Level-2 fields (`signature`, `key_id`, `
 
 Level 2 provides evidentiary strength to the audit record (non-repudiation and detection of lost events); it does not imply authorization of the domain action.
 
+The level is one of two independent axes. It states how strongly a tool's attestation resists forgery, and says nothing about who recorded it; §5.2 carries that second question. On each axis the party that performs the obligation declares what it does, and the other declares what it needs.
+
 ### 5.1 Signature algorithms and key binding
 
 A Level-2 `signature` is a detached signature over the canonical event (§8.2), produced by an algorithm bound to the `key_id` by the out-of-band key registry (§7.4), not carried in the event. This version defines two algorithms, each producing a fixed-length raw signature:
@@ -145,6 +147,23 @@ A Level-2 `signature` is a detached signature over the canonical event (§8.2), 
 The `signature` field MUST be the standard base64 encoding (with padding, [RFC-4648] §4) of these raw signature bytes; implementations MUST NOT use base64url on the wire, so that a foreign verifier decodes the field unambiguously. The normative schema pins the field to `^[A-Za-z0-9+/]+={0,2}$`. A `signature` that is undecodable base64, or that decodes to the wrong length for the bound algorithm, is treated as a failed verification and rejected as `signature-invalid` (§7.6), not `schema-invalid`. The schema sets no maximum length on `signature` (or other string fields); bounding message size against oversized-input resource exhaustion is a transport/SDK responsibility (§7.3), not a canonicalization concern.
 
 **Key registry.** The registry is provisioned out-of-band at onboarding and is deployment-specific, but its entries have a normative shape: each maps a non-empty `key_id` to exactly one algorithm identifier from the set above and one public key. Because the event carries no algorithm field, a host selects the verifier from the `key_id`'s registry entry, which lets one host verify a heterogeneous fleet - Ed25519 tools alongside KMS-hosted ECDSA P-256 tools - without an in-band algorithm negotiation. A `key_id` with no registry entry is rejected as `unknown-key` (§7.6). New algorithm identifiers are added only by a future version of this specification (§12). Key rotation and revocation are covered in §10.9.
+
+### 5.2 Witness
+
+A Level-2 chain sealed by a tool acting as its own host is strongly signed and independently unconfirmed; a Level-1 chain sealed by a separate host is weakly signed and independently confirmed. These are different properties, so this specification keeps them on separate axes rather than folding one into the other.
+
+The **witness** axis states who sealed a record:
+
+| Witness  | Meaning                                                                                                                                                                                                  |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `self`   | The tool and the host are the same party - it issued and recorded the chain. The chain establishes internal consistency only (§10.2). This is the degraded posture of §6.2.                                  |
+| `host`   | A host distinct from the tool sealed each record and returned a **Receipt** over it, signed with a key the verifier's registry binds to that host (§7.1).                                                    |
+
+**A witness is established per record, by evidence, never by declaration.** A record is host-witnessed when it carries a `host_signature` that verifies against the `host_key_id`'s registry entry, and self-witnessed otherwise. A self-hosting tool cannot manufacture the host-witnessed state, because it holds no key the verifier's registry binds to a host. This is why §6.2 forbids a flag: a flag is something the degraded posture could set for itself, and a signature is not.
+
+A participant declares its position on this axis in the capability object (§6.1): a host declares `host` when it signs Receipts, and a tool declares `host` when it requires one. The declaration tells each side what to expect; it is not evidence. A tool that requires a witness enforces the requirement at runtime (§7.2), exactly as a host enforces the level at runtime (§7.1).
+
+The witness axis does not alter the record hash. The Receipt signature is computed over the sealed record's host-assigned fields and stored alongside them (§7.1), outside the §8.2 preimage, so a chain sealed without a witness and the same chain sealed with one produce identical `record_hash` values, and a chain sealed under an earlier version verifies unchanged.
 
 ## 6. Protocol
 
@@ -183,13 +202,14 @@ The value at that key is the capability object, serving as this extension's [SEP
 
 The host enforces its own required `level` at runtime (§7) regardless of what the tool offers: when the host requires Level 1 and the tool offers Level 2, the host still validates only at Level 1 (it does not demand signatures); when the host requires Level 2, the host validates every event at Level 2. The offered level only decides whether the connection is admitted (below).
 
-The capability object declares the operational parameters of the audit subsystem. `spec_version`, `level`, and `attempt` are REQUIRED.
+The capability object declares the operational parameters of the audit subsystem. `spec_version`, `level`, `attempt`, and `witness` are all REQUIRED.
 
 | Field          | Type   | Presence | Notes                                                                                                                                                                                                            |
 | -------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `spec_version` | string | REQUIRED | The Auditable MCP version the participant supports (e.g., `auditable-mcp/0.2`). Enables a cross-version handshake, since events carry `spec_version` (§4) but negotiation must establish a common version first. |
 | `level`        | string | REQUIRED | MUST be `"L1"` or `"L2"`. The negotiated assurance level.                                                                                                                                                        |
 | `attempt`      | string | REQUIRED | MUST be `"request"`. `audit/attempt` is a blocking, fail-closed request. A single permitted value in this version; it is a forward-compatibility placeholder reserving the field for a future non-blocking mode. |
+| `witness`      | string | REQUIRED | MUST be `"self"` or `"host"` (§5.2). A host declares `"host"` when it signs Receipts; a tool declares `"host"` when it requires one. Unlike `level`, the obligation on this axis falls on the host, so the roles of requirement and offer are reversed.  |
 
 When either participant's declared `spec_version` is not mutually supported, or a tool's declared `level` does not meet the host's requirement (e.g., the host requires Level 2 but the tool supports only Level 1), resolving the mismatch is an orchestrator or SDK implementation responsibility. The orchestrator MAY terminate the connection, or it MAY seek human-in-the-loop consent to admit the tool at a lower assurance level and record that decision in its allowlist. Whatever the orchestrator decides, the session is unnegotiated until a comparison succeeds, so §6.2 governs the tool: it sends no audit message in the meantime.
 
@@ -234,6 +254,21 @@ If validation fails, or if the host suffers a persistence failure, it replies wi
 
 **Verifiable Accept:** On an `accept` response, the host MUST return the full set of host-assigned fields required for the tool to reconstruct the hash preimage (§8.2): `seq`, `host_ts`, `previous_hash`, and the resulting `record_hash`. Without these, the tool cannot perform the mandatory Polluted Stop verification (§7.2).
 
+**Receipt (witness `host`).** The four host-assigned fields an `accept` already returns constitute the **Receipt** for that record. A host that declares `witness: "host"` (§5.2) MUST additionally return `host_signature`, a detached signature over the RFC 8785 canonical form (§8.1) of the Receipt object
+
+```json
+{
+  "host_ts": "<ISO-8601 string assigned by host>",
+  "previous_hash": "<hex-encoded string>",
+  "record_hash": "<hex-encoded string>",
+  "seq": <integer>
+}
+```
+
+together with the `host_key_id` identifying the signing key. The algorithm is bound to `host_key_id` by a registry of the same normative shape as §5.1's, provisioned out-of-band; the same algorithm identifiers and the same standard-base64 encoding apply. The Receipt preimage carries no signature field, so there is no self-reference, and it is NOT part of the §8.2 record-hash preimage - a record sealed with a Receipt and the same record sealed without one have the same `record_hash`.
+
+A host that signs a Receipt MUST persist `host_signature` and `host_key_id` alongside the sealed record, so a verifier reading the ledger later establishes the witness (§5.2) without the live exchange.
+
 **Attempt Response.** The host's reply to the `audit/attempt` JSON-RPC request is a JSON object forming a tagged union discriminated on `status`. Its normative schema is [`schema/audit-attempt-response.schema.json`](schema/audit-attempt-response.schema.json).
 
 | Field           | Type    | Notes                                                                                                                                                                           |
@@ -244,6 +279,8 @@ If validation fails, or if the host suffers a persistence failure, it replies wi
 | `host_ts`       | string  | REQUIRED when `status` is `"accept"`. Authoritative host timestamp, ISO-8601 UTC with a `Z` suffix (no offset); it is part of the §8.2 preimage, so its exact string is hashed. |
 | `previous_hash` | string  | REQUIRED when `status` is `"accept"`. The preceding record's `record_hash` (64-zero genesis for the first record).                                                              |
 | `reason`        | string  | REQUIRED when `status` is `"reject"` or `"unavailable"`. Machine-readable cause.                                                                                                |
+| `host_signature` | string | REQUIRED when `status` is `"accept"` and the host declares `witness: "host"` (§5.2); otherwise absent. Detached signature over the canonical Receipt, standard base64.      |
+| `host_key_id`   | string  | REQUIRED whenever `host_signature` is present; otherwise absent. Identifies the host signing key and binds its algorithm via the registry.                                      |
 | `retryable`     | boolean | REQUIRED when `status` is `"unavailable"`; MUST be `true`.                                                                                                                      |
 
 A conformant host MUST NOT return fields outside those permitted for the resolved `status`; the accept, reject, and unavailable variants are mutually exclusive.
@@ -265,10 +302,12 @@ To guarantee that the host recorded the exact event the tool emitted, the tool M
 
 - If the hashes do not match (indicating ledger pollution or host compromise), the tool MUST NOT perform the internal action. It MUST emit an outcome event with `outcome: "aborted"` and `reason: "hash-mismatch"`.
 - If the host replies with `reject` or `unavailable`, the tool MUST NOT perform the internal action. It MUST emit an outcome event with `outcome: "aborted"` and `reason: "host-rejected"` for a `reject` or `reason: "host-unavailable"` for an `unavailable`.
+- If the tool requires `witness: "host"` (§5.2) and the `accept` carries no `host_signature`, the tool MUST NOT perform the internal action. It MUST emit an outcome event with `outcome: "aborted"` and `reason: "host-unwitnessed"`.
+- If a `host_signature` is present but does not verify against the `host_key_id`'s registry entry, the tool MUST NOT perform the internal action. It MUST emit an outcome event with `outcome: "aborted"` and `reason: "host-signature-invalid"`. A tool that does not require a witness MAY skip the check, but MUST NOT treat a signature it failed to verify as valid.
 
 ### 7.3 Protocol limits and environmental enforcement
 
-The protocol establishes the tool's obligation to halt execution - the `MUST NOT perform the internal action` of §7.2 - when an attempt is rejected, is unavailable, or fails hash verification. However, the Auditable MCP protocol itself operates via JSON-RPC messages and cannot physically restrain a rogue tool that violates this obligation.
+The protocol establishes the tool's obligation to halt execution - the `MUST NOT perform the internal action` of §7.2 - when an attempt is rejected, is unavailable, fails hash verification, or returns without the Receipt the tool requires. However, the Auditable MCP protocol itself operates via JSON-RPC messages and cannot physically restrain a rogue tool that violates this obligation.
 
 Detecting and physically terminating a rogue tool (e.g., sending process kill signals, or dropping unauthorized network-layer egress traffic - distinct from the §4.2 `egress` attestation flag - via a network gateway) is outside the scope of this protocol and remains the responsibility of the host's runtime environment, orchestrator, or infrastructure.
 
@@ -311,6 +350,8 @@ Tool abort `reason` codes (the tool records one on its fail-closed `aborted` out
 | `hash-mismatch`    | Polluted Stop found the host's `record_hash` did not match (§7.2).       |
 | `host-rejected`    | The host returned `reject`, so the tool did not perform the action.      |
 | `host-unavailable` | The host returned `unavailable`, so the tool did not perform the action. |
+| `host-unwitnessed` | The tool required a host-witnessed Receipt and the `accept` carried no `host_signature` (§5.2, §7.2). |
+| `host-signature-invalid` | A Receipt signature was present but failed verification against the registered host key (§7.2). |
 
 Anomaly kinds (a verifier reads these from a possibly foreign ledger):
 
@@ -324,6 +365,7 @@ Anomaly kinds (a verifier reads these from a possibly foreign ledger):
 | `signature-invalid`    | A sealed Level-2 record carries a signature that fails verification (§7.4).                                                                                                                                  |
 | `orphaned-outcome`     | A `success` or `failed` outcome references no accepted attempt - never accepted, or after its attempt was rejected (§7.2).                                                                                   |
 | `unreported-egress`    | Governance-boundary reconciliation saw an out-of-governance egress with no correlated self-reported event (§7.5, §10.2).                                                                                     |
+| `host-signature-invalid` | A sealed record carries a `host_signature` that fails verification against the registered host key (§5.2). The absence of a signature is NOT an anomaly - it is the `self` witness state.                     |
 
 The Tier-1 set is a closure: every reject, unavailable, abort, and anomaly condition this specification defines maps to exactly one Tier-1 code, so an implementation always has a safe, interoperable code to emit. **Every code-valued field on the wire or in the ledger is pinned to Tier-1.** Specifically: the Attempt Response `reason` is pinned by its schema to the Tier-1 reject codes plus `internal-error` for `unavailable` (`schema/audit-attempt-response.schema.json`); the sealed outcome-event `reason` is pinned by its schema to the Tier-1 abort codes (§7.2, `schema/audit-event.schema.json`); and every anomaly `kind` a conformant verifier reports is a Tier-1 anomaly code. None carries an additional free-form field (the wire schemas are `additionalProperties: false`).
 
@@ -470,6 +512,7 @@ A conformant Host MUST:
 
 - **Capability Enforcement:** Publish its required audit capability under the `extensions` member of its `ClientCapabilities`, keyed by the extension identifier (§6.1), and enforce that level at runtime (§7.1), rejecting events that do not meet the mandated level.
 - **Verifiable Accept:** Return `seq`, `host_ts`, and `previous_hash` alongside `record_hash` in the `accept` response (§7.1).
+- **Receipt Signing:** If it declares `witness: "host"` (§5.2), sign the canonical Receipt of every accepted record, return `host_signature` and `host_key_id`, and persist both with the sealed record (§7.1).
 - **Ledger Validation:** Perform the mandatory schema, numeric canonicalization-domain (§8.1), and attempt `id`-uniqueness (both levels), plus `signer_seq` and signature (Level 2), validations before sealing (§7.1); fail closed on integrity violations.
 - **Receive-boundary Numeric Enforcement:** Reject a number outside the canonicalization domain at ingestion, before a lossy native parse can corrupt it (§8.1).
 - **Anomaly Flagging:** Flag (without rejecting) a forward `signer_seq` gap (`signer-seq-gap`) where the `key_id` is partition-bound (§7.4) and any orphaned `success` or `failed` outcome (`orphaned-outcome`) that references no accepted attempt (§7.2, §7.6).
@@ -484,6 +527,7 @@ A conformant Tool MUST:
 - **Polluted Stop:** Under Level 2, recompute the `record_hash` upon receiving an `accept` response using the host-provided `seq`, `host_ts`, and `previous_hash`, and abort execution if the hash does not match (§7.2). Under Level 1, this verification is OPTIONAL.
 - **Signature Encoding (Level 2):** Sign with the algorithm bound to the `key_id` by the registry and encode the detached `signature` as standard base64 (§5.1).
 - **Abort Signaling:** Upon a `reject`, `unavailable`, or Polluted-Stop hash mismatch, emit an `outcome: "aborted"` event with the appropriate Tier-1 `reason` (§7.6) before completely halting the operation.
+- **Witness Enforcement:** If it requires `witness: "host"` (§5.2), verify the Receipt signature on every `accept` and abort with `host-unwitnessed` or `host-signature-invalid` rather than act on an unwitnessed record (§7.2).
 - **Degradation:** In an unnegotiated session (§6.2), send no `audit/attempt` or `audit/outcome`, serve `tools/call` exactly as a build without this extension would, and take one of the two admissible postures - degraded or mandatory. Serving a call while silently recording nothing is NOT conformant.
 
 ## 12. Extensibility and Registries
@@ -498,7 +542,7 @@ The algorithm identifiers `Ed25519` and `ECDSA_P256_SHA256` (§5.1) are the comp
 alg-id = 1*( ALPHA / DIGIT / "_" )
 ```
 
-A future version MAY add identifiers; when this document graduates to a standards-track process, this registry SHOULD be maintained under a "Specification Required" policy ([RFC-8126]-style), each entry pinning the identifier string, the signature scheme, and the exact raw wire encoding. Identifiers MUST NOT be added or interpreted in-band; a `key_id` bound to an unrecognized algorithm is unverifiable and its events are rejected as `unknown-key` (§7.4).
+The same identifiers and the same registry shape bind a host's Receipt-signing key under `host_key_id` (§7.1). A future version MAY add identifiers; when this document graduates to a standards-track process, this registry SHOULD be maintained under a "Specification Required" policy ([RFC-8126]-style), each entry pinning the identifier string, the signature scheme, and the exact raw wire encoding. Identifiers MUST NOT be added or interpreted in-band; a `key_id` bound to an unrecognized algorithm is unverifiable and its events are rejected as `unknown-key` (§7.4).
 
 ### 12.2 Tier-1 reason and anomaly vocabulary
 
