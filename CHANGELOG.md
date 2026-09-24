@@ -17,19 +17,19 @@ Makes the extension real on the MCP wire and separates who recorded a chain from
 ### Added (normative)
 
 - **§6.2 Graceful degradation.** A session is *audit-negotiated* only when both parties declared the extension and the capability comparison succeeded. In any other session a tool MUST NOT send `audit/attempt` or `audit/outcome`, and MUST serve `tools/call` exactly as a build without this extension would. Two postures are admissible - **degraded** (serve, and record into an audit host the tool provides for itself; RECOMMENDED default) and **mandatory** (refuse to serve, as [SEP-2133] permits). Serving a call while silently recording nothing is NOT conformant.
-- **§5.2 the witness axis, orthogonal to the conformance level.** The level says how strongly a tool's attestation resists forgery; the witness says who sealed it. A witnessing host signs the **Receipt** - the four host-assigned fields an `accept` already returns - and persists `host_signature` and `host_key_id` with the sealed record (§7.1). The witness is established **per record, by evidence**: a self-hosting tool cannot manufacture the `host` state, because it holds no key the verifier's registry binds to a host. Absence of a signature is a state, not an anomaly.
+- **§5.2 the witness axis, orthogonal to the conformance level.** The level says how strongly a tool's attestation resists forgery; the witness says who sealed it. A witnessing host signs the host-assigned fields an `accept` already returns - `seq`, `host_ts`, `previous_hash`, `record_hash` - and persists `host_signature` and `host_key_id` with the sealed record (§7.1). The artifact is deliberately not called a *Receipt*: [SCITT] gives that word to one whose profiles must support inclusion proofs, which this signature is not. The witness is established **per record, by evidence**: a self-hosting tool cannot manufacture the `host` state, because it holds no key the verifier's registry binds to a host. Absence of a signature is a state, not an anomaly.
 - **§10.10 identity binding in shared storage.** A chain proves authorship and internal consistency, never whose chain it is, so a deployment holding records for several principals MUST either wrap each record in a SEP-3004 boundary record whose core binds `principal_id`, or carry the host-assigned identity inside the sealed record - and a verifier MUST check it against an expectation supplied out-of-band. A missing binding fails closed. No identity field is added to §4.
 - **Tier-1 vocabulary** (§7.6): abort reasons `host-unwitnessed` and `host-signature-invalid`; anomaly kinds `host-signature-invalid` and `principal-mismatch`.
 
 ### Changed (normative)
 
-- **§6** scopes the fail-closed obligations to an audit-negotiated session; a peer that never declared the extension MUST NOT trigger them. **§7.3** lists the missing Receipt among the halt conditions.
+- **§6** scopes the fail-closed obligations to an audit-negotiated session; a peer that never declared the extension MUST NOT trigger them. **§7.3** lists a missing witness signature among the halt conditions.
 - **§6.1** states the identifier/version split: the identifier names the extension, `spec_version` names the wire version. Below 1.0 the [SEP-2133] breaking-change rule is discharged through `spec_version`, which is REQUIRED in the settings object and compared at negotiation, so an older peer fails to negotiate visibly rather than misbehaving. A new identifier will be minted at or after 1.0.
-- **§11.2** adds Receipt Signing; **§11.3** adds Witness Enforcement and Degradation. **§12.1** binds a host's Receipt key under the same algorithm registry shape as a tool's.
+- **§11.2** adds Witness Signing; **§11.3** adds Witness Enforcement and Degradation. **§12.1** binds a host's witness-signing key under the same algorithm registry shape as a tool's.
 
 ### Backward compatibility
 
-- **The witness axis does not move `record_hash`.** The Receipt signature is computed over the host-assigned fields and stored beside them, outside the §8.2 preimage, so a chain sealed with a Receipt and the same chain sealed without one hash identically, and chains sealed under an earlier version verify unchanged.
+- **The witness axis does not move `record_hash`.** The witness signature is computed over the host-assigned fields and stored beside them, outside the §8.2 preimage, so a chain sealed with one and the same chain sealed without one hash identically, and chains sealed under an earlier version verify unchanged.
 - The digests change only because `spec_version` is inside the hashed event, as at every previous version bump.
 
 ### Reference alignment
