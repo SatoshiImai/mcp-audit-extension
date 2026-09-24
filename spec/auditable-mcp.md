@@ -152,7 +152,7 @@ The `signature` field MUST be the standard base64 encoding (with padding, [RFC-4
 
 ### 5.2 Witness
 
-A Level-2 chain sealed by a tool acting as its own host is strongly signed and independently unconfirmed; a Level-1 chain sealed by a separate host is weakly signed and independently confirmed. These are different properties, so this specification keeps them on separate axes rather than folding one into the other.
+A Level-2 chain that carries no witness signature is strongly signed and independently unconfirmed; a Level-1 chain that carries one is weakly signed and independently confirmed. These are different properties, so this specification keeps them on separate axes rather than folding one into the other.
 
 The **witness** axis states what a record carries, not who the parties were:
 
@@ -167,7 +167,7 @@ The capability values `none` and `host` (§6.1) declare which of these a partici
 
 A participant declares its position on this axis in the capability object (§6.1): a host declares `host` when it signs, and a tool declares `host` when it requires a signature. The declaration tells each side what to expect; it is not evidence. A tool that requires a witness enforces the requirement at runtime (§7.2), exactly as a host enforces the level at runtime (§7.1).
 
-The witness axis does not alter the record hash. The witness signature is computed over the sealed record's host-assigned fields and stored alongside them (§7.1), outside the §8.2 preimage, so a chain sealed without a witness and the same chain sealed with one produce identical `record_hash` values, and a chain sealed under an earlier version verifies unchanged.
+The witness axis does not alter the record hash. The witness signature is computed over the sealed record's host-assigned fields and stored alongside them (§7.1), outside the §8.2 preimage, so a chain sealed without a witness and the same chain sealed with one produce identical `record_hash` values, and a chain sealed before this axis existed is unaffected by it.
 
 ## 6. Protocol
 
@@ -227,7 +227,7 @@ Where one party supports an extension and the other does not, [SEP-2133] require
 
 A session is **audit-negotiated** when both parties declared the extension identifier (§6.1) at `initialize` and the resulting capability comparison succeeded. Every other session is **unnegotiated**: the peer declared no `extensions` member, or declared other extensions but not this one, or declared it with a `spec_version`, `level`, or `witness` that does not fit (§6.1).
 
-**In an unnegotiated session a tool MUST NOT send `audit/attempt` or `audit/outcome`.** A host that did not declare this extension has no audit subsystem to receive them and answers a JSON-RPC `error` (method not found), which §6 requires the tool to read as a failure to record. A tool that sends regardless therefore fails closed against a peer that has done nothing wrong, and is unusable with ordinary MCP hosts. The obligation rests on the tool because only the tool knows whether the exchange was negotiated.
+**In an unnegotiated session a tool MUST NOT send `audit/attempt` or `audit/outcome`.** A host that did not declare this extension has not agreed to receive them, and an ordinary MCP host answers an undeclared method with a JSON-RPC `error` (method not found), which §6 requires the tool to read as a failure to record. A tool that sends regardless therefore fails closed against a peer that has done nothing wrong, and is unusable with ordinary MCP hosts. The obligation rests on the tool because only the tool knows whether the exchange was negotiated.
 
 **A tool MUST serve an unnegotiated session as an ordinary MCP tool.** Its `tools/list` and `tools/call` behavior, and the content of its results, MUST NOT differ from a build without this extension. Auditable MCP adds to what a tool reports about itself; it never changes what the tool does.
 
@@ -238,13 +238,13 @@ A session is **audit-negotiated** when both parties declared the extension ident
 | **Degraded**  | Serve the call, and record the internal operations into an audit host the tool provides for itself, applying §7 unchanged. | The tool stays usable by every MCP host, and its interior is still recorded.                                                                      |
 | **Mandatory** | Refuse to serve, as [SEP-2133] permits for a mandatory extension.                                                          | Deployments where a record the host never saw has no value - for example where the operator's obligation is discharged only by the host's ledger. |
 
-**A tool in the degraded posture SHOULD make that state observable to its operator** - through a log record, a metric, a startup banner, or whatever channel the deployment already watches - so that the loss of the host's witness is noticed rather than merely discoverable after the fact. Alerting personnel, and deciding what else to do about an audit failure, is an organizational control rather than a protocol behavior ([NIST-SP-800-53] AU-5); this specification requires only that a tool not conceal the state from the operator who owns that control.
+**A tool in the degraded posture SHOULD make that state observable to its operator** - through a log record, a metric, a startup banner, or whatever channel the deployment already watches - so that the absence of a host's witness is noticed rather than merely discoverable after the fact. Alerting personnel, and deciding what else to do about an audit failure, is an organizational control rather than a protocol behavior ([NIST-SP-800-53] AU-5); this specification requires only that a tool not conceal the state from the operator who owns that control.
 
 AU-5(4) invokes a full shutdown, a partial shutdown, or a degraded operational mode on an audit logging failure, *unless an alternate audit logging capability exists*. The two postures here sit on opposite sides of that rule: the degraded posture is the alternate capability, and the mandatory posture is the invoked response. The word *degraded* is this specification's own and denotes continuing to serve; AU-5's "degraded operational mode" denotes reduced functionality, which is the opposite side of the same rule.
 
 **A tool MUST NOT take a third posture, in which it serves a call in an unnegotiated session, records nothing, and reports nothing about the omission.** That combination restores the opaque interior of §1 while the tool continues to advertise this extension to hosts that ask.
 
-**A self-hosted chain carries no independent confirmation.** A tool acting as its own host issues and records the same chain, so no record in it is confirmed by a second party; §10.2 governs what such a chain does and does not establish. A verifier establishes which of the two it is reading from the witness signature alone (§5.2, §11.4).
+**A self-hosted chain carries no independent confirmation.** A tool acting as its own host issues and records the same chain, so no record in it is confirmed by a second party; §10.2 governs what such a chain does and does not establish. A verifier tells such a chain from one a distinct host confirmed by the witness signature alone (§5.2, §11.4).
 
 ## 7. Host behavior and tool obligations
 
