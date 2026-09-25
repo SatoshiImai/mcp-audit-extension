@@ -56,17 +56,18 @@ async function main(): Promise<void> {
   dropped.ledger.unsafeMutableRecords().splice(2, 1);
   printReport('verify', dropped.records(), anchored);
 
-  console.log('\n[4] Reject - a replayed (forged) attempt id is refused, ledger stays clean:');
+  console.log('\n[4] Reject - a replayed attempt id carrying different bytes is refused, ledger stays clean:');
   const h4 = new AuditHost('acme#2026-07-15');
   const t4 = new InProcessTransport(h4);
-  const s4 = new AmcpSession(t4, 'call_abc', deterministicDeps());
+  const session4 = h4.openSession();
+  const s4 = new AmcpSession(t4, session4, deterministicDeps());
   const tool4 = new SqlAnalystTool(s4);
   await tool4.analyze('What were the high-value customer trends in the Tokyo area last month?');
   const replay = {
     id: '00000000-0000-4000-8000-000000000001',
-    spec_version: 'auditable-mcp/0.2',
+    spec_version: 'auditable-mcp/0.3',
     ts: new Date(1001000).toISOString(),
-    call_id: 'call_abc',
+    session_id: session4,
     action_type: 'db.write',
     mutates: true,
     egress: false,
@@ -82,7 +83,7 @@ async function main(): Promise<void> {
   const h5 = new AuditHost('acme#2026-07-15');
   h5.unavailable = true;
   const t5 = new InProcessTransport(h5);
-  const s5 = new AmcpSession(t5, 'call_abc', deterministicDeps());
+  const s5 = new AmcpSession(t5, h5.openSession(), deterministicDeps());
   const tool5 = new SqlAnalystTool(s5);
   try {
     await tool5.analyze('What were the high-value customer trends in the Tokyo area last month?');

@@ -5,14 +5,16 @@ import pytest
 from auditable_mcp.canonical import canonicalize
 from auditable_mcp.ledger import GENESIS_HASH, Ledger
 
+SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
+
 
 def _event(event_id: str, outcome: str) -> dict:
     """Build a minimal valid event dict for ledger tests."""
     return {
         'id': event_id,
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': 'auditable-mcp/0.3',
         'ts': '2026-07-15T00:00:00.000Z',
-        'call_id': 'call_abc',
+        'session_id': SESSION,
         'action_type': 'db.read',
         'mutates': False,
         'egress': False,

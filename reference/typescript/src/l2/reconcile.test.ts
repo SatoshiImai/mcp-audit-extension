@@ -11,8 +11,10 @@ import { BoundaryObserver, reconcile } from './reconcile.js';
 const EGRESS_DESTINATION = GEOCODER;
 const QUESTION = 'What were the high-value customer trends in the Tokyo area last month?';
 
+const SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0';
+
 function newTool(host: AuditHost): SqlAnalystTool {
-  return new SqlAnalystTool(new AmcpSession(new InProcessTransport(host), 'call_abc', deterministicDeps()));
+  return new SqlAnalystTool(new AmcpSession(new InProcessTransport(host), host.openSession(SESSION), deterministicDeps()));
 }
 
 describe('reconciliation - boundary egress vs self-report', () => {
@@ -21,9 +23,9 @@ describe('reconciliation - boundary egress vs self-report', () => {
     const boundary = new BoundaryObserver();
 
     await newTool(host).analyze(QUESTION); // tool self-reports the egress
-    boundary.observeEgress('call_abc', EGRESS_DESTINATION); // gateway observes it
+    boundary.observeEgress(SESSION, EGRESS_DESTINATION); // gateway observes it
 
-    expect(reconcile(host.records(), boundary.forCall('call_abc'), 'call_abc')).toHaveLength(0);
+    expect(reconcile(host.records(), boundary.forSession(SESSION), SESSION)).toHaveLength(0);
   });
 
   it('detects suppression: an egress the boundary saw but the tool never reported', async () => {
@@ -32,9 +34,9 @@ describe('reconciliation - boundary egress vs self-report', () => {
 
     // The gateway saw the egress, but the tool emitted no audit event, which signatures and
     // sequence gaps cannot catch.
-    boundary.observeEgress('call_abc', EGRESS_DESTINATION);
+    boundary.observeEgress(SESSION, EGRESS_DESTINATION);
 
-    const anomalies = reconcile(host.records(), boundary.forCall('call_abc'), 'call_abc');
+    const anomalies = reconcile(host.records(), boundary.forSession(SESSION), SESSION);
     expect(anomalies).toHaveLength(1);
     expect(anomalies[0]).toMatchObject({ kind: 'unreported-egress', destination: EGRESS_DESTINATION });
   });
@@ -47,10 +49,10 @@ describe('reconciliation - boundary egress vs self-report', () => {
     // enough distinct destinations are used that an accidentally pre-sorted iteration (which would
     // let a missing sort pass) is negligible; the anomaly list must always come back sorted.
     for (const dest of ['zeta', 'mid', 'alpha', 'yankee', 'bravo', 'kilo']) {
-      boundary.observeEgress('call_abc', dest);
+      boundary.observeEgress(SESSION, dest);
     }
 
-    const anomalies = reconcile(host.records(), boundary.forCall('call_abc'), 'call_abc');
+    const anomalies = reconcile(host.records(), boundary.forSession(SESSION), SESSION);
     expect(anomalies.map((a) => a.destination)).toEqual(['alpha', 'bravo', 'kilo', 'mid', 'yankee', 'zeta']);
   });
 
@@ -60,6 +62,6 @@ describe('reconciliation - boundary egress vs self-report', () => {
 
     await newTool(host).analyze(QUESTION); // self-reported, but the boundary saw nothing
 
-    expect(reconcile(host.records(), boundary.forCall('call_abc'), 'call_abc')).toHaveLength(0);
+    expect(reconcile(host.records(), boundary.forSession(SESSION), SESSION)).toHaveLength(0);
   });
 });

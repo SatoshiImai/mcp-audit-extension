@@ -1,19 +1,19 @@
 """Tests for L2 signing and the shared-schema invariant."""
 
-import base64
-
 from auditable_mcp.l2.keys import generate_tool_key
-from auditable_mcp.l2.signing import KeySigner, sign_event, verify_event_signature
+from auditable_mcp.l2.signing import KeySigner, b64url_decode, sign_event, verify_event_signature
 from auditable_mcp.schema import validate_event
+
+SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
 
 
 def _base_event() -> dict:
     """Build a minimal valid (unsigned) event."""
     return {
         'id': '00000000-0000-4000-8000-000000000001',
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': 'auditable-mcp/0.3',
         'ts': '2026-07-15T00:00:01.000Z',
-        'call_id': 'call_abc',
+        'session_id': SESSION,
         'action_type': 'db.write',
         'mutates': True,
         'egress': False,
@@ -74,11 +74,11 @@ def test_signer_stamps_monotonic_sequence() -> None:
 
 def test_ecdsa_p256_signs_and_verifies_fixed_length() -> None:
     """ECDSA P-256 (KMS/PKI profile) signs and verifies as fixed-length r||s (§5.1)."""
-    key = generate_tool_key('kms-key', 'ECDSA_P256_SHA256')
-    assert key.alg == 'ECDSA_P256_SHA256'
+    key = generate_tool_key('kms-key', 'ES256')
+    assert key.alg == 'ES256'
     signed = sign_event(_base_event(), key.key_id, 0, key.alg, key.private_key)
     # IEEE P1363 r||s: 64 raw bytes, not DER, so a foreign verifier decodes it unambiguously.
-    assert len(base64.b64decode(signed['signature'])) == 64
+    assert len(b64url_decode(signed['signature'])) == 64
     assert verify_event_signature(signed, key)
     forged = {**signed, 'target_resource': {'kind': 'table', 'ref': 'salaries'}}
     assert not verify_event_signature(forged, key)
@@ -87,7 +87,7 @@ def test_ecdsa_p256_signs_and_verifies_fixed_length() -> None:
 def test_verifier_dispatches_on_key_bound_algorithm() -> None:
     """A mixed Ed25519 + ECDSA fleet verifies: the algorithm comes from the key, not the payload."""
     ed_key = generate_tool_key('ed', 'Ed25519')
-    ec_key = generate_tool_key('ec', 'ECDSA_P256_SHA256')
+    ec_key = generate_tool_key('ec', 'ES256')
     ed_signed = sign_event(_base_event(), ed_key.key_id, 0, ed_key.alg, ed_key.private_key)
     ec_signed = sign_event(_base_event(), ec_key.key_id, 0, ec_key.alg, ec_key.private_key)
     assert verify_event_signature(ed_signed, ed_key)

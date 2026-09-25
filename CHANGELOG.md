@@ -4,6 +4,72 @@ All notable changes to the Auditable MCP specification are documented here. The 
 
 This changelog is informative. Normative force (the RFC 2119 keywords) lives only in the specification; the summaries below merely describe it.
 
+## v0.3 - 2026-09-25
+
+Makes the extension real on the MCP wire, and makes it survive the wire changing. Driven by three findings: [SEP-2133] made `capabilities.extensions` the place an extension declares itself (shipping in MCP protocol version `2026-07-28`); MCP `2026-07-28` removed both the initialization handshake and server-initiated requests, the two things an in-call audit exchange had rested on; and a tool with no documented fallback would fail closed against every host that does not speak this extension - which is every ordinary MCP host.
+
+### Breaking changes
+
+- **`spec_version` advances `auditable-mcp/0.2` -> `auditable-mcp/0.3`.** The version string is part of the canonical event bytes, so all golden digests change; there is no on-the-wire compatibility window between draft versions. New digests: Level-1 sealed chain `b518c79e...`, Level-2 signed chain `fd6e0e2f...`.
+- **The event's `call_id` is replaced by `session_id`**, a UUID the host issues for each audited `tools/call` (§4, §6.3). A JSON-RPC id is chosen by the sender, is not unique across connections, and changes on every Multi Round-Trip retry, so it could not name the call an event belongs to.
+- **`signer_seq` is numbered per key within an audit session, from 0** (§7.4), instead of per key across the key's lifetime. The first-observation baseline and the partition-binding condition on gap detection are gone.
+- **Signatures are base64url without padding, and the ECDSA identifier is `ES256`** (§5.1). The algorithm identifiers are the fully-specified JOSE names ([RFC-9864]): `Ed25519` was already one; `ECDSA_P256_SHA256` becomes `ES256`. The encoding is the one JWS uses, so a key held as a JWK and a signature are written alike.
+- **The capability object gains a REQUIRED `countersign` field**, `"none"` or `"host"` (§5.2, `schema/audit-capability.schema.json`). A v0.2 capability object no longer validates.
+- **The Attempt Response's `unavailable` variant loses `retryable`**, whose single permitted value carried no information; §7.1's idempotent retry says what a tool may do after `unavailable`.
+- **The declaration moves from `capabilities.experimental["auditable-mcp"]` to `capabilities.extensions["com.timberlandchapel/auditable-mcp"]`** (§6.1).
+
+### Added (normative)
+
+- **§6 separates the exchange from its bindings.** The exchange - an attempt answered by an Attempt Response, an outcome answered by nothing - is defined once. **§6.4** binds it to MCP `2026-07-28`: the tool ends a round of the `tools/call` with an `InputRequiredResult` carrying its events in `_meta`, and the host answers in the `_meta` of the Multi Round-Trip retry; no new JSON-RPC method is defined, and the host's declaration travels with every request. **§6.5** binds it to the MCP versions with an initialization handshake, as `audit/attempt` (a server-to-client request) and `audit/outcome` (a notification). A change to MCP revises a binding and nothing else. New schemas: `schema/audit-request-meta.schema.json` and `schema/audit-result-meta.schema.json`.
+- **§6.3 audit session.** One `tools/call` is one audit session. The host issues its `session_id`, the tool carries it in every event, the host rejects an event carrying another, and the session ends with the call. Because `session_id` is inside the signed and hashed event, an event recorded for one call cannot be recorded again as another's (§10.7).
+- **Idempotent retry** (§7.1). A byte-identical repeat of a sealed attempt is answered with the original Attempt Response and seals nothing; an attempt id repeated with different bytes is a replay. A tool that received `unavailable`, or no answer, may send the identical attempt again.
+- **Refusals are sealed** (§7.2, §10.4). The `aborted` outcome of an attempt the host did not accept is sealed as the record of an operation the tool declined to perform, and under Level 2 accounts for the `signer_seq` its unsealed attempt consumed; §11.4 gives verifiers one deterministic procedure for that accounting, which reports each run of unaccounted values as one gap and never enumerates them.
+- **`unresolved-attempt`** (§6.3, §7.6, §10.8). The host issued the call, so it observes the call's end; an accepted attempt with no sealed terminal outcome at that point is recorded. A trailing outcome's loss, which v0.2 could not detect, now is.
+- **At most once** (§6, §6.4, §10.11). A tool performs an operation at most once however many `accept`s reach it: an attempt sent again is answered again, a binding can deliver an answer late or twice, and a Multi Round-Trip `requestState` is attacker-controlled and can be replayed.
+- **Polluted Stop wherever a countersignature is required** (§7.2). The countersignature binds the host-assigned fields to `record_hash`, and only Polluted Stop binds `record_hash` to the tool's own event, so a tool that requires the one performs the other at either level.
+- **§6.2 Graceful degradation.** A call is *audit-negotiated* only when both parties declared the extension, the comparison succeeded, and the host issued an audit session. For any other call a tool sends no audit message and serves `tools/call` exactly as a build without this extension would. Two postures are admissible - **degraded** (serve, and record into an audit host the tool provides for itself; RECOMMENDED default) and **mandatory** (refuse to serve, as [SEP-2133] permits). Serving a call while silently recording nothing is not conformant. A degraded tool SHOULD make that state observable to its operator ([NIST-SP-800-53] AU-5).
+- **§5.2 the countersignature axis, orthogonal to the conformance level.** The level says how strongly a tool's attestation resists forgery; the countersignature says who sealed it. A countersigning host signs the host-assigned fields an `accept` already returns, together with the `log_id` naming its ledger, and persists `host_signature`, `host_key_id`, and `log_id` with every sealed record, outcomes included (§7.1, §7.2). The countersignature is established per record, by evidence, never by declaration. It is deliberately not called a *witness*: in transparency-log practice a witness is independent of the log's operator, and the host is the operator ([RFC-9338] names the relationship).
+- **§10.10 identity binding in shared storage.** A chain proves authorship and internal consistency, never whose chain it is, so a deployment holding records for several principals MUST bind identity - by giving each principal's partition its own `log_id` and countersigning every record, or by sealing each record inside an enclosing record that binds the principal - and a verifier MUST check the binding against an expectation supplied out-of-band.
+- **Tier-1 vocabulary** (§7.6): abort reasons `host-uncountersigned` and `host-signature-invalid`; anomaly kinds `unresolved-attempt`, `host-signature-invalid`, `principal-mismatch`, and `replay-detected` (two sealed records sharing a `signer_seq`, or an outcome the host dropped as a replay). An outcome the host drops is recorded under the anomaly kind for the condition (§6).
+- **Round affinity** (§6.4, §10.11). Under Streamable HTTP every request of an audited call carries `Auditable-Mcp-Session`, mirroring its `session_id` as MCP mirrors `Mcp-Name`; the body is the source of truth and a disagreeing header is `-32020 HeaderMismatch`. A retry carries the request metadata headers of the request it repeats. A tool that keeps a call's state in one of several instances delivers every retry to that instance - by an intermediary routing on the header (which intermediaries pass through), or by forwarding - or refuses it without acting. Any request of an audited call carrying a `requestState` is a retry, the tool's own rounds included, and is never served as a first request; a first request for a call already held is refused; an altered `requestState` can cause nothing worse than the request's failure.
+- **One call, one comparison** (§6.1, §6.4). Under `2026-07-28` the comparison is made on the call's first request and holds for every retry of the call.
+- **UUIDs are lowercase and compared as strings** (§4); a `session_id` is never the nil UUID. **The Level-2 fields appear together or not at all.** **Strings are Unicode scalar values** (§8.1), so a lone surrogate is `schema-invalid`.
+- **One terminal record per operation**, correlated by `session_id` and `id` together (§7.2, §11.4).
+- **Keys** (§10.9): a tool signs a whole session under one key; a revoked key keeps its registry entry so the records it signed still verify; the tool and host registries share no key.
+- **Bindings** (§6, §6.4, §6.5): an answer that fails the Attempt Response schema is no answer; under §6.5 an event arrives on the related call, or on a call in flight on the same connection whose session the host issued; a round's events are processed one by one.
+- **Registries** (§5.1) refuse an entry whose key and algorithm disagree when they are loaded.
+- **Verifiers** (§11.4) accept an out-of-band requirement that a chain be countersigned, and report an uncountersigned record under it; match identity on `log_id` together with the countersigning `host_key_id`; report an earlier-version record sealed after a later one; report a malformed sealed record without stopping, validate a record against the schema of the version it was sealed under, and report two sealed records sharing a `signer_seq`.
+- **Abort `reason` precedence** (§7.2): `status`, then the countersignature, then the hash; the first that applies wins, so two implementations seal the same `reason`.
+- **§3 defines Audit session, Countersignature, Binding, and Verifier; §11.4 Verifier Conformance.**
+- **§9 positions this extension against SCITT, transparency-log witnesses, sequence-numbered protocols, and JOSE.** The Verifiable Accept plays a Receipt's part without being one; a deployment MAY anchor the ledger by registering the tail record's countersignature preimage in a SCITT Transparency Service.
+
+### Changed (normative)
+
+- **§7.1's validation order** is structure, session, signature, uniqueness, sequence; a duplicate id is checked after its signature, so its `signer_seq` counts as received.
+- **§7.1's validation order** applies to outcomes as well, and an outcome is correlated only after it passes.
+- **§7.4's host tracker** keeps, per key and session, the set of `signer_seq` values it has decided (a value in it is a replay; `unavailable` adds nothing) and the highest received with a verifying signature (the gap bound). This is the anti-replay window of IPsec and DTLS ([RFC-4303], [RFC-9147]), sized to the session, so an attempt sent again after `unavailable` is processed even when later operations of the session went ahead.
+- **§6.4's call end** is the host's decision, since no request is in flight between rounds: a host that does not retry a round ends the session. A call that ends in a JSON-RPC error delivers its remaining outcomes in one more round. A host bounds a round's processing by one deadline and retries when it passes, answering `unavailable` to what it has not decided; it does not hold the call's result on its own audit work, and removes this extension's member from a result before passing it to its caller. A tool keeps the answer of a call it concluded while a round was out until that round's retry arrives.
+- **JSON-RPC batching is not used** (§6.5); MCP removed it in `2025-06-18`.
+- **§3** no longer defines the Host as the MCP client or orchestrator alone: the degraded posture has the tool provide one for itself.
+- **§8.3** does not seal a byte-identical event twice, outcomes included.
+- **§12.1** draws algorithm identifiers from the IANA JOSE registry.
+
+### Backward compatibility
+
+- **The countersignature does not move `record_hash`.** It is computed over the host-assigned fields and stored beside them, outside the §8.2 preimage, so a chain sealed with one and the same chain sealed without one hash identically.
+- The digests change because `spec_version`, `session_id`, and the signature encoding are inside the hashed event.
+
+### Reference alignment
+
+- `spec/schema/*.json` and `spec/vectors/*.json` are regenerated at v0.3 from the TypeScript reference's Zod source of truth.
+- **`chain-signed.json` and `chain-countersigned.json` carry real signatures**, made with fixed Ed25519 seeds and verifiable against the public keys each file publishes as a JWK. `chain-countersigned.json` pins the countersignature preimage, `log_id` included, and the same `record_hash` values as `chain.json`.
+- **`signer-seq-accounting.json`** pins the runs §11.4's procedure reports, **`signer-seq-replay.json`** pins §7.4's replay tracker, and **`verifier-cases.json`** pins the verifier's inputs (a required countersignature, an expected identity) and its version- and correlation-order findings.
+- **References:** [SEP-3004] moves to Informative (it was closed on 2026-09-22 to proceed through an MCP Working Group). Added: [MCP-2026-07-28], [MCP-MRTR], [RFC-7515], [RFC-7518], [RFC-9864] (normative); [RFC-7493], [RFC-7517], [RFC-9338], [RFC-8446], [RFC-4303], [RFC-9147], [RFC-5848], [KIP-98], [MCP-2025-06-18], [SEP-414], [MCP-TOA], [SCITT], [RFC-9162], [C2SP], [NIST-SP-800-53] (informative).
+
+### Reference implementations
+
+- **Both ports are at v0.3.** They carry audit sessions (the host issues and closes them, and records `unresolved-attempt`), idempotent retry, sealed refusals, the `signer_seq` tracker, the countersignature triple with `log_id`, base64url signatures, the `ES256` identifier, and the §11.4 accounting procedure. They reproduce every committed vector byte-for-byte and verify the signatures in them. Their MCP wiring demonstrates the §6.5 binding; the §6.4 binding is demonstrated by the SDKs.
+
 ## v0.2 - 2026-07-25
 
 Redefines `egress` semantics and advances the wire `spec_version` to `auditable-mcp/0.2`. Driven by production dogfooding: a physical-network definition of `egress` marks nearly every operation in a zero-trust / cloud-native deployment as egress, destroying its value as a DLP signal.

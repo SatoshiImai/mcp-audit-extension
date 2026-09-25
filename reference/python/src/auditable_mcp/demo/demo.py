@@ -65,15 +65,16 @@ def main() -> None:
     del records[2]
     _report('verify', records, anchored)
 
-    logger.info('\n[4] Reject - a replayed (forged) attempt id is refused, ledger stays clean:')
+    logger.info('\n[4] Reject - a replayed attempt id carrying different bytes is refused, ledger stays clean:')
     h4 = AuditHost('acme#2026-07-15')
-    tool4 = SqlAnalystTool(AmcpSession(InProcessTransport(h4), 'call_abc', DeterministicDeps()))
+    session4 = h4.open_session()
+    tool4 = SqlAnalystTool(AmcpSession(InProcessTransport(h4), session4, DeterministicDeps()))
     tool4.analyze('What were the high-value customer trends in the Tokyo area last month?')
     replay = {
         'id': '00000000-0000-4000-8000-000000000001',
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': 'auditable-mcp/0.3',
         'ts': '1970-01-01T00:16:41.000Z',
-        'call_id': 'call_abc',
+        'session_id': session4,
         'action_type': 'db.write',
         'mutates': True,
         'egress': False,
@@ -88,7 +89,7 @@ def main() -> None:
     logger.info('\n[5] Fail-closed - host unavailable, the internal action is not performed:')
     h5 = AuditHost('acme#2026-07-15')
     h5.unavailable = True
-    tool5 = SqlAnalystTool(AmcpSession(InProcessTransport(h5), 'call_abc', DeterministicDeps()))
+    tool5 = SqlAnalystTool(AmcpSession(InProcessTransport(h5), h5.open_session(), DeterministicDeps()))
     try:
         tool5.analyze('What were the high-value customer trends in the Tokyo area last month?')
         logger.info('  action proceeded despite no durable record (BUG)')

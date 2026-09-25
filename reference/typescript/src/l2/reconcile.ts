@@ -6,24 +6,24 @@ import type { SealedRecord } from '../ledger/ledger.js';
 // tool never emits the event.
 
 export interface EgressObservation {
-  call_id: string;
+  session_id: string;
   destination: string;
 }
 
 export class BoundaryObserver {
   private readonly observations: EgressObservation[] = [];
 
-  observeEgress(callId: string, destination: string): void {
-    this.observations.push({ call_id: callId, destination });
+  observeEgress(sessionId: string, destination: string): void {
+    this.observations.push({ session_id: sessionId, destination });
   }
 
-  forCall(callId: string): EgressObservation[] {
-    return this.observations.filter((o) => o.call_id === callId);
+  forSession(sessionId: string): EgressObservation[] {
+    return this.observations.filter((o) => o.session_id === sessionId);
   }
 }
 
 export interface ReconcileAnomaly {
-  call_id: string;
+  session_id: string;
   kind: 'unreported-egress';
   destination: string;
   detail: string;
@@ -32,14 +32,14 @@ export interface ReconcileAnomaly {
 export function reconcile(
   records: readonly SealedRecord[],
   observations: readonly EgressObservation[],
-  callId: string,
+  sessionId: string,
 ): ReconcileAnomaly[] {
   // Self-reported egress destinations for this call (dedup by target ref across attempt/outcome).
   const reported = new Set<string>();
   for (const r of records) {
-    if (r.event.call_id === callId && r.event.egress) reported.add(r.event.target_resource.ref);
+    if (r.event.session_id === sessionId && r.event.egress) reported.add(r.event.target_resource.ref);
   }
-  const observed = new Set(observations.filter((o) => o.call_id === callId).map((o) => o.destination));
+  const observed = new Set(observations.filter((o) => o.session_id === sessionId).map((o) => o.destination));
 
   // Reconciliation detects suppression by omission only (§7.5): an egress the boundary observed
   // but the tool never self-reported. The reverse (self-reported but boundary-unobserved) is not
@@ -47,7 +47,7 @@ export function reconcile(
   const anomalies: ReconcileAnomaly[] = [];
   for (const dest of observed) {
     if (!reported.has(dest)) {
-      anomalies.push({ call_id: callId, kind: 'unreported-egress', destination: dest, detail: 'observed egress with no self-report' });
+      anomalies.push({ session_id: sessionId, kind: 'unreported-egress', destination: dest, detail: 'observed egress with no self-report' });
     }
   }
   // Python set iteration is hash-randomized; sort by destination so each port emits a stable,
