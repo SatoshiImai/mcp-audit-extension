@@ -6,9 +6,9 @@ import { signEvent, verifyEventSignature, KeySigner } from './signing.js';
 function baseEvent(): AuditEvent {
   return {
     id: '00000000-0000-4000-8000-000000000001',
-    spec_version: 'auditable-mcp/0.2',
+    spec_version: 'auditable-mcp/0.3',
     ts: '2026-07-15T00:00:01.000Z',
-    call_id: 'call_abc',
+    session_id: '0198f3a2-5c1e-7000-8000-00000000abc0',
     action_type: 'db.write',
     mutates: true,
     egress: false,
@@ -65,8 +65,8 @@ describe('L2 signing', () => {
   });
 
   it('ECDSA P-256 (KMS/PKI profile) signs and verifies as fixed-length r||s (§5.1)', () => {
-    const key = generateToolKey('kms-key', 'ECDSA_P256_SHA256');
-    expect(key.alg).toBe('ECDSA_P256_SHA256');
+    const key = generateToolKey('kms-key', 'ES256');
+    expect(key.alg).toBe('ES256');
     const signed = signEvent(baseEvent(), key.keyId, 0, key.alg, key.privateKey);
     // IEEE P1363 r||s: 64 raw bytes, not DER, so a foreign verifier decodes it unambiguously.
     expect(Buffer.from(signed.signature ?? '', 'base64')).toHaveLength(64);
@@ -77,7 +77,7 @@ describe('L2 signing', () => {
 
   it('the verifier dispatches on the key-bound algorithm, so a mixed Ed25519 + ECDSA fleet works', () => {
     const edKey = generateToolKey('ed', 'Ed25519');
-    const ecKey = generateToolKey('ec', 'ECDSA_P256_SHA256');
+    const ecKey = generateToolKey('ec', 'ES256');
     const edSigned = signEvent(baseEvent(), edKey.keyId, 0, edKey.alg, edKey.privateKey);
     const ecSigned = signEvent(baseEvent(), ecKey.keyId, 0, ecKey.alg, ecKey.privateKey);
     expect(verifyEventSignature(edSigned, edKey)).toBe(true);

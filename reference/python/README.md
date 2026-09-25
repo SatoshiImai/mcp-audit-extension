@@ -24,7 +24,7 @@ digest as the TypeScript demo for the same deterministic scenario.
 
 - `python -m auditable_mcp.demo.demo` (L1): clean run VERIFIED (a `db.query` shows `mut=0 egr=1` -
   read-only, yet the query egresses to the DB); tamper -> `record-hash-mismatch` +
-  `digest-mismatch`; loss -> `seq-gap`; replayed id -> `reject`; unavailable -> fail-closed.
+  `digest-mismatch`; loss -> `seq-gap`; an id replayed with different bytes -> `reject`; unavailable -> fail-closed.
 - `python -m auditable_mcp.demo.l2_demo` (L2): portable escalation (same tool + a signer); forgery ->
   `signature-invalid`; unsigned -> `l2-unsigned`; suppressed event -> `signer-seq-gap`; suppressed
   egress -> `unreported-egress` (reconciliation).
@@ -38,13 +38,14 @@ tool's domain action; the only thing it blocks is a **lie into the ledger**.
 | --------------------------------------- | -------------------------------------------------------------------- |
 | `src/auditable_mcp/canonical.py`        | deterministic canonical JSON + hashing                               |
 | `src/auditable_mcp/schema.py`           | validation against the shared JSON Schema (`jsonschema`)             |
+| `src/auditable_mcp/encoding.py`         | strict base64url (and pre-0.3 base64) for signatures and keys        |
 | `src/auditable_mcp/ledger.py`           | seq + hash chain (sealed records)                                    |
 | `src/auditable_mcp/transport.py`        | wire-shaped `AuditTransport` protocol                                |
 | `src/auditable_mcp/in_process.py`       | in-process transport                                                 |
-| `src/auditable_mcp/host.py`             | audit subsystem: L1 accept/reject/unavailable + L2 verify/signer_seq |
+| `src/auditable_mcp/host.py`             | audit subsystem: sessions, accept/reject/unavailable, L2 signer_seq  |
 | `src/auditable_mcp/amcp.py`             | audit-before-act session (with/without signer)                       |
 | `src/auditable_mcp/sql_analyst_tool.py` | dummy first-party SQL analyst tool (NL question -> internal SQL)     |
-| `src/auditable_mcp/l2/`                 | Ed25519 + ECDSA P-256 signing, key registry, reconciliation          |
+| `src/auditable_mcp/l2/`                 | `Ed25519` + `ES256` signing, key registry, reconciliation            |
 | `src/auditable_mcp/verify.py`           | chain recompute, gap + tamper detection                              |
 | `src/auditable_mcp/demo/`               | L1 and L2 walkthroughs                                               |
 
@@ -52,7 +53,7 @@ tool's domain action; the only thing it blocks is a **lie into the ledger**.
 
 ```
 uv sync                                          # install runtime + dev deps from pyproject
-uv run pytest                                    # 48 tests (incl. cross-language vectors + L2)
+uv run pytest                                    # cross-language vectors, L1, L2
 PYTHONPATH=src uv run python -m auditable_mcp.demo.demo
 PYTHONPATH=src uv run python -m auditable_mcp.demo.l2_demo
 uv run ruff check src tests                      # lint

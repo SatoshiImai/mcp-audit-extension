@@ -1,57 +1,133 @@
-import { auditEventSchema, type AuditEvent } from '../schema/event.js';
+import { randomUUID } from 'node:crypto';
+import type { AuditEvent } from '../schema/event.js';
 import type { AuditCapability, NegotiationResult } from '../schema/capability.js';
 import { DEFAULT_L1_CAPABILITY, negotiateCapability } from '../schema/capability.js';
-import { Ledger, type SealedRecord } from '../ledger/ledger.js';
-import { hasUnsafeNumber } from '../ledger/canonical.js';
+import { checkEventStructure } from '../schema/validate.js';
+import { Ledger, type Countersigner, type SealedRecord } from '../ledger/ledger.js';
+import { canonicalize } from '../ledger/canonical.js';
 import type { AttemptResponse, RejectReason } from '../transport/transport.js';
 import { verifyEventSignature } from '../l2/signing.js';
 import type { KeyRegistry } from '../l2/keys.js';
 
-// Host-side audit subsystem. Decides accept/reject/unavailable and seals accepted records into
-// the tamper-evident ledger. Does not authorize domain actions (operator allowlist owns that);
-// rejects only malformed, forged, or replayed records so they never enter the chain.
+// Host-side audit subsystem. Decides accept/reject/unavailable and seals records into the
+// tamper-evident ledger. Does not authorize domain actions (operator allowlist owns that); rejects
+// only malformed, forged, or replayed records so they never enter the chain.
 
-// Tier-1 codes the host emits (§7.6): reject/unavailable reasons logged when refusing a record,
-// and anomaly kinds flagged on accepted records. Finer cause (e.g. numeric-domain, id vs signer_seq
-// replay, orphan sub-kind) is carried as Tier-2 free text in `detail`.
+// The Tier-1 anomaly kinds the host records (§7.6). Finer cause is Tier-2 free text in `detail`.
+export type AnomalyKind =
+  | 'schema-invalid'
+  | 'replay-detected'
+  | 'signature-invalid'
+  | 'signer-seq-gap'
+  | 'orphaned-outcome'
+  | 'unresolved-attempt';
+
 export interface IntegrityAnomaly {
   id: string;
-  kind:
-    | 'schema-invalid'
-    | 'replay-detected'
-    | 'l2-unsigned'
-    | 'unknown-key'
-    | 'signature-invalid'
-    | 'signer-seq-gap'
-    | 'orphaned-outcome';
+  kind: AnomalyKind;
   detail: string;
 }
+
+// The replay window of one key in one audit session (§7.4): the signer_seq values the host has
+// decided - sealed, or rejected after the signature verified - and the highest received with a
+// verifying signature. `unavailable` and an idempotent duplicate add nothing to `decided`.
+interface KeyTracker {
+  decided: Set<number>;
+  received: number | undefined;
+}
+
+// One audit session: one tools/call (§6.3).
+interface Session {
+  trackers: Map<string, KeyTracker>;
+  accepted: Set<string>;
+  rejected: Set<string>;
+  // The canonical form of the terminal outcome sealed for each id: one per operation (§7.2).
+  outcomes: Map<string, string>;
+}
+
+type SignatureCheck = { ok: true; tracker?: KeyTracker; signerSeq?: number } | { ok: false; reason: RejectReason };
+
+type Admitted = { ok: true; event: AuditEvent; session: Session } | { ok: false; reason: RejectReason };
+
+// The Tier-1 anomaly kind of a Level-2 reject reason (§7.6): a missing signature and an unknown key
+// are signature failures in the anomaly code space.
+const SIGNATURE_ANOMALY: AnomalyKind = 'signature-invalid';
 
 export class AuditHost {
   readonly ledger: Ledger;
   private readonly capability: AuditCapability;
   private readonly keyRegistry: KeyRegistry | undefined;
-  private readonly acceptedAttempts = new Set<string>();
-  private readonly rejectedIds = new Set<string>();
-  private readonly lastSeqByKey = new Map<string, number>();
+  private readonly sessions = new Map<string, Session>();
+  private readonly issued = new Set<string>();
+  // The partition's sealed attempts by id, with the canonical bytes and the response they got, so
+  // a byte-identical repeat is answered from the ledger (§7.1).
+  private readonly sealedAttempts = new Map<string, { canonical: string; response: AttemptResponse }>();
   private readonly anomalies: IntegrityAnomaly[] = [];
+  private readonly countersigner?: Countersigner;
   private hostClock = 0;
 
   // Test switch: simulate durability failure; must fail closed.
   unavailable = false;
 
-  constructor(partition: string, capability: AuditCapability = DEFAULT_L1_CAPABILITY, keyRegistry?: KeyRegistry) {
+  // A host that declares it countersigns and then does not would leave every record uncountersigned
+  // while its peers expect otherwise; a host that declares `none` MUST NOT return the triple (§7.1),
+  // and holding a signer is the only way to violate that. Both are refused here, not at seal time.
+  constructor(
+    partition: string,
+    capability: AuditCapability = DEFAULT_L1_CAPABILITY,
+    keyRegistry?: KeyRegistry,
+    countersigner?: Countersigner,
+  ) {
+    if (capability.countersign === 'host' && countersigner === undefined) {
+      throw new Error('a host declaring countersign "host" requires a Countersigner (§5.2)');
+    }
+    if (capability.countersign === 'none' && countersigner !== undefined) {
+      throw new Error('a host declaring countersign "none" must not hold a Countersigner (§7.1)');
+    }
     this.ledger = new Ledger(partition);
     this.capability = capability;
     this.keyRegistry = keyRegistry;
+    this.countersigner = countersigner;
   }
 
   negotiate(offered: AuditCapability): NegotiationResult {
     return negotiateCapability(this.capability, offered);
   }
 
+  // The capability object this host declares (§6.1).
+  declaration(): AuditCapability {
+    return this.capability;
+  }
+
   getAnomalies(): readonly IntegrityAnomaly[] {
     return this.anomalies;
+  }
+
+  // Issue a fresh audit session for a call the host audits (§6.3): never one issued before, even
+  // for a session that has since ended.
+  openSession(sessionId: string = randomUUID()): string {
+    if (this.issued.has(sessionId)) throw new Error(`session ${sessionId} was already issued (§6.3)`);
+    this.issued.add(sessionId);
+    this.sessions.set(sessionId, { trackers: new Map(), accepted: new Set(), rejected: new Set(), outcomes: new Map() });
+    return sessionId;
+  }
+
+  // The call ended (§6.3): every outcome of the session has been delivered, so an accepted attempt
+  // without a sealed terminal outcome was never resolved. The session accepts nothing further, and
+  // its replay window is discarded (§7.4).
+  closeSession(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session === undefined) return;
+    for (const id of session.accepted) {
+      if (!session.outcomes.has(id)) {
+        this.flag(id, 'unresolved-attempt', `call ended with attempt ${id} unresolved`);
+      }
+    }
+    this.sessions.delete(sessionId);
+  }
+
+  private flag(id: string, kind: AnomalyKind, detail: string): void {
+    this.anomalies.push({ id, kind, detail });
   }
 
   // Deterministic monotonic host time in ISO-8601 (§8.2); no wall clock, for reproducible vectors.
@@ -60,145 +136,162 @@ export class AuditHost {
     return new Date(Date.UTC(2026, 6, 15, 0, 0, this.hostClock)).toISOString();
   }
 
-  // L2 (§7.4): verify signature over a registered key and per-key_id signer_seq. Unsigned, forged,
-  // or replayed records are rejected. A forward signer_seq gap is flagged (signer-seq-gap), not
-  // rejected: the suppressed event is unrecoverable. No-op under L1. The first signer_seq for a
-  // key_id (no prior tracked value) is the baseline, so it is accepted and never flagged as a gap.
-  private checkL2(event: AuditEvent): { reject: false } | { reject: true; reason: RejectReason } {
-    if (this.capability.level !== 'L2') return { reject: false };
-
-    if (!event.signature || !event.key_id || event.signer_seq === undefined) {
-      this.anomalies.push({ id: event.id, kind: 'l2-unsigned', detail: 'L2 requires signature, key_id, signer_seq' });
-      return { reject: true, reason: 'l2-unsigned' };
+  // Structure (§7.1 step 1, incl. which outcome each channel carries) and then the session (step 2).
+  // `arrivedOn` is the set of sessions the host issued for the calls in flight on the connection the
+  // event arrived on (§6.5); without it, any open session is the call's (a transport bound to one call).
+  private admit(raw: unknown, attempt: boolean, arrivedOn?: ReadonlySet<string>): Admitted {
+    const check = checkEventStructure(raw);
+    if (!check.ok) {
+      this.flag(extractId(raw), 'schema-invalid', check.detail);
+      return { ok: false, reason: 'schema-invalid' };
     }
-    const key = this.keyRegistry?.get(event.key_id);
-    if (!key) {
-      this.anomalies.push({ id: event.id, kind: 'unknown-key', detail: `no registered key for ${event.key_id}` });
-      return { reject: true, reason: 'unknown-key' };
+    const { event } = check;
+    if ((event.outcome === 'attempted') !== attempt) {
+      const detail = attempt ? 'attempt-must-be-attempted: attempt must carry outcome=attempted' : 'attempted outcome on the outcome channel (§6)';
+      this.flag(event.id, 'schema-invalid', detail);
+      return { ok: false, reason: 'schema-invalid' };
+    }
+    const session = this.sessions.get(event.session_id);
+    if (session === undefined || (arrivedOn !== undefined && !arrivedOn.has(event.session_id))) {
+      this.flag(event.id, 'replay-detected', `session: ${event.session_id} is not the session of a call in flight (§6.3)`);
+      return { ok: false, reason: 'replay-detected' };
+    }
+    return { ok: true, event, session };
+  }
+
+  // Level 2 (§7.1 step 3, §7.4). Once the signature verifies the event counts as received: a value
+  // more than one past the highest received - or a first value other than 0 - is flagged, not rejected.
+  private verifySignature(event: AuditEvent, session: Session): SignatureCheck {
+    if (this.capability.level !== 'L2') return { ok: true };
+    if (event.signature === undefined || event.key_id === undefined || event.signer_seq === undefined) {
+      this.flag(event.id, SIGNATURE_ANOMALY, 'l2-unsigned: Level 2 requires signature, key_id, signer_seq');
+      return { ok: false, reason: 'l2-unsigned' };
+    }
+    const key = this.keyRegistry?.current(event.key_id);
+    if (key === undefined) {
+      this.flag(event.id, SIGNATURE_ANOMALY, `unknown-key: no current registry entry for ${event.key_id}`);
+      return { ok: false, reason: 'unknown-key' };
     }
     if (!verifyEventSignature(event, key)) {
-      this.anomalies.push({ id: event.id, kind: 'signature-invalid', detail: 'signature does not verify (forged/altered)' });
-      return { reject: true, reason: 'signature-invalid' };
+      this.flag(event.id, SIGNATURE_ANOMALY, 'signature does not verify (forged/altered)');
+      return { ok: false, reason: 'signature-invalid' };
     }
-    const last = this.lastSeqByKey.get(event.key_id);
-    if (last === undefined) {
-      // First observation for this key_id is the baseline (§7.4): accepted as-is, never a gap,
-      // because there is no prior value to compare against (a persisted or cross-partition counter
-      // may legitimately start above 0).
-      return { reject: false };
+    let tracker = session.trackers.get(event.key_id);
+    if (tracker === undefined) {
+      tracker = { decided: new Set(), received: undefined };
+      session.trackers.set(event.key_id, tracker);
     }
-    if (event.signer_seq <= last) {
-      this.anomalies.push({ id: event.id, kind: 'replay-detected', detail: `signer_seq ${event.signer_seq} <= last ${last}` });
-      return { reject: true, reason: 'replay-detected' };
+    const seq = event.signer_seq;
+    if (tracker.received === undefined ? seq !== 0 : seq > tracker.received + 1) {
+      const expected = tracker.received === undefined ? 0 : tracker.received + 1;
+      this.flag(event.id, 'signer-seq-gap', `expected ${expected}, got ${seq}`);
     }
-    if (event.signer_seq > last + 1) {
-      this.anomalies.push({ id: event.id, kind: 'signer-seq-gap', detail: `expected ${last + 1}, got ${event.signer_seq} (suppressed event)` });
-    }
-    return { reject: false };
+    if (tracker.received === undefined || seq > tracker.received) tracker.received = seq;
+    return { ok: true, tracker, signerSeq: seq };
   }
 
-  // Advance the per-key signer_seq tracker; called only after a record is sealed (§7.4). The tracker
-  // follows the last accepted (sealed) signer_seq, not the last seen, so an unavailable/retryable
-  // attempt does not poison the counter for a retry.
-  private advanceSeq(event: AuditEvent): void {
-    if (event.key_id !== undefined && event.signer_seq !== undefined) {
-      this.lastSeqByKey.set(event.key_id, event.signer_seq);
-    }
+  private static decide(check: SignatureCheck): void {
+    if (check.ok && check.tracker !== undefined && check.signerSeq !== undefined) check.tracker.decided.add(check.signerSeq);
   }
 
-  handleAttempt(raw: unknown): AttemptResponse {
-    const parsed = auditEventSchema.safeParse(raw);
-    if (!parsed.success) {
-      const id = extractId(raw);
-      this.anomalies.push({ id, kind: 'schema-invalid', detail: parsed.error.message });
-      return { status: 'reject', reason: 'schema-invalid' };
+  private static alreadyDecided(check: SignatureCheck): boolean {
+    return check.ok && check.tracker !== undefined && check.signerSeq !== undefined && check.tracker.decided.has(check.signerSeq);
+  }
+
+  handleAttempt(raw: unknown, arrivedOn?: ReadonlySet<string>): AttemptResponse {
+    const admitted = this.admit(raw, true, arrivedOn);
+    if (!admitted.ok) return { status: 'reject', reason: admitted.reason };
+    const { event, session } = admitted;
+    const signed = this.verifySignature(event, session);
+    if (!signed.ok) {
+      session.rejected.add(event.id);
+      return { status: 'reject', reason: signed.reason };
     }
-    const event = parsed.data;
-    if (event.outcome !== 'attempted') {
-      // Tier-1 schema-invalid; the Tier-2 specifics go in detail (§7.6).
-      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'attempt-must-be-attempted: attempt must carry outcome=attempted' });
-      return { status: 'reject', reason: 'schema-invalid' };
-    }
-    // Not canonicalizable (§8.1): reject gracefully instead of throwing at seal time.
-    if (hasUnsafeNumber(event)) {
-      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'numeric-domain: numeric value not canonicalizable (§8.1)' });
-      return { status: 'reject', reason: 'schema-invalid' };
-    }
-    // L2: reject forged/unsigned/replayed records before sealing.
-    const l2 = this.checkL2(event);
-    if (l2.reject) {
-      this.rejectedIds.add(event.id);
-      return { status: 'reject', reason: l2.reason };
-    }
-    // Persistence failure: fail closed (retryable), returned as internal-error (§7.6).
-    if (this.unavailable) {
-      return { status: 'unavailable', reason: 'internal-error', retryable: true };
-    }
-    // Replayed attempt id: reject as duplicate.
-    if (this.acceptedAttempts.has(event.id)) {
-      this.rejectedIds.add(event.id);
-      this.anomalies.push({ id: event.id, kind: 'replay-detected', detail: 'id-replay: duplicate attempt id' });
+    // §7.1 step 4: a sealed id answers a byte-identical repeat from the ledger and rejects anything else.
+    const canonical = canonicalize(event);
+    const sealed = this.sealedAttempts.get(event.id);
+    if (sealed !== undefined) {
+      if (sealed.canonical === canonical) return sealed.response;
+      AuditHost.decide(signed);
+      session.rejected.add(event.id);
+      this.flag(event.id, 'replay-detected', 'id-replay: attempt id sealed with a different event');
       return { status: 'reject', reason: 'replay-detected' };
     }
-    const sealed = this.ledger.append(event, this.nextHostTs());
-    this.acceptedAttempts.add(event.id);
-    this.advanceSeq(event);
-    // Verifiable Accept (§7.1): return host-assigned fields the tool needs to reconstruct the
-    // §8.2 preimage for Polluted Stop verification.
-    return {
+    // §7.1 step 4: an operation with a sealed outcome has concluded, and no attempt is sealed after
+    // its own terminal record.
+    if (session.outcomes.has(event.id)) {
+      AuditHost.decide(signed);
+      session.rejected.add(event.id);
+      this.flag(event.id, 'replay-detected', 'concluded: the operation already has a sealed outcome');
+      return { status: 'reject', reason: 'replay-detected' };
+    }
+    // §7.1 step 5: a signer_seq already decided in this session is a replay.
+    if (AuditHost.alreadyDecided(signed)) {
+      session.rejected.add(event.id);
+      this.flag(event.id, 'replay-detected', `sequence: signer_seq ${event.signer_seq} already decided`);
+      return { status: 'reject', reason: 'replay-detected' };
+    }
+    // Persistence failure: nothing is decided, so the identical attempt may come again (§7.1).
+    if (this.unavailable) return { status: 'unavailable', reason: 'internal-error' };
+
+    const record = this.ledger.append(event, this.nextHostTs(), this.countersigner);
+    AuditHost.decide(signed);
+    session.accepted.add(event.id);
+    // Verifiable Accept (§7.1): the host-assigned fields the tool needs to reconstruct the §8.2
+    // preimage for Polluted Stop, and the countersignature triple where the host countersigns.
+    const response: AttemptResponse = {
       status: 'accept',
-      seq: sealed.seq,
-      record_hash: sealed.record_hash,
-      host_ts: sealed.host_ts,
-      previous_hash: sealed.previous_hash,
+      seq: record.seq,
+      record_hash: record.record_hash,
+      host_ts: record.host_ts,
+      previous_hash: record.previous_hash,
+      ...(record.host_signature !== undefined && record.host_key_id !== undefined && record.log_id !== undefined
+        ? { host_signature: record.host_signature, host_key_id: record.host_key_id, log_id: record.log_id }
+        : {}),
     };
+    this.sealedAttempts.set(event.id, { canonical, response });
+    return response;
   }
 
-  // Outcome is appended, not gated. A success/failed outcome for a never-accepted or rejected id is
-  // flagged; a fail-closed `aborted` outcome is not (§10.4).
-  handleOutcome(raw: unknown): void {
-    const parsed = auditEventSchema.safeParse(raw);
-    if (!parsed.success) {
-      this.anomalies.push({ id: extractId(raw), kind: 'schema-invalid', detail: parsed.error.message });
+  // An outcome has no response (§6): one that fails validation is dropped and recorded under its
+  // Tier-1 anomaly kind, never answered and never thrown. It is validated in the order an attempt is
+  // - structure, session, signature, uniqueness, sequence - and only then correlated (§7.2).
+  handleOutcome(raw: unknown, arrivedOn?: ReadonlySet<string>): void {
+    const admitted = this.admit(raw, false, arrivedOn);
+    if (!admitted.ok) return;
+    const { event, session } = admitted;
+    // The signature is verified, and the event counted as received, even when the host then turns
+    // out to be unavailable: receiving and deciding are separate (§7.4).
+    const signed = this.verifySignature(event, session);
+    if (!signed.ok) return;
+    // One terminal record per (session_id, id) (§7.2): a byte-identical repeat is not processed further.
+    const canonical = canonicalize(event);
+    const sealed = session.outcomes.get(event.id);
+    if (sealed !== undefined) {
+      if (sealed === canonical) return;
+      AuditHost.decide(signed);
+      this.flag(event.id, 'replay-detected', 'correlation: differs from the outcome already sealed for this operation');
       return;
     }
-    const event = parsed.data;
-    // Not canonicalizable (§8.1): drop instead of throwing at seal time.
-    if (hasUnsafeNumber(event)) {
-      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'numeric-domain: numeric value not canonicalizable (§8.1)' });
+    if (AuditHost.alreadyDecided(signed)) {
+      this.flag(event.id, 'replay-detected', `sequence: signer_seq ${event.signer_seq} already decided`);
       return;
     }
-    // §6: an `attempted` outcome on the audit/outcome channel is invalid; drop and flag it rather than
-    // sealing a second attempt record for the id (§7.1 uniqueness).
-    if (event.outcome === 'attempted') {
-      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'attempted outcome on the audit/outcome channel (§6)' });
+    const correlated = session.accepted.has(event.id);
+    // §7.2: a success or failed outcome with no accepted attempt in its session is not sealed.
+    if (!correlated && event.outcome !== 'aborted') {
+      AuditHost.decide(signed);
+      const sub = session.rejected.has(event.id) ? 'after-reject' : 'never-accepted';
+      this.flag(event.id, 'orphaned-outcome', `${sub}: outcome=${event.outcome}`);
       return;
     }
-    // An aborted outcome MUST carry a Tier-1 abort code (§7.2). Zod pins the value but not its
-    // presence; the emitted JSON Schema adds the conditional, and the host enforces it here too.
-    if (event.outcome === 'aborted' && event.reason === undefined) {
-      this.anomalies.push({ id: event.id, kind: 'schema-invalid', detail: 'aborted-without-reason: an aborted outcome MUST carry a Tier-1 abort code (§7.2)' });
-      return;
-    }
-    // §10.4: a fail-closed `aborted` outcome for a never-accepted or rejected attempt is the honest
-    // refused-action signal, not a tampering anomaly. Exempt it before checkL2, so a fresh signer
-    // sequence that outran the unsealed attempt is not flagged as a suppression gap.
-    if (event.outcome === 'aborted' && !this.acceptedAttempts.has(event.id)) return;
-    // L2: drop an outcome with invalid signature/sequence (a notification has no reply).
-    if (this.checkL2(event).reject) return;
-    if (this.acceptedAttempts.has(event.id)) {
-      // Each correlated outcome is sealed, not de-duplicated (§8.3). This reference imposes no cap
-      // on outcomes per id; §8.3 makes that bound a host/SDK responsibility, so picking a number
-      // here would be an arbitrary policy the spec deliberately leaves open.
-      this.ledger.append(event, this.nextHostTs());
-      this.advanceSeq(event);
-      return;
-    }
-    if (this.rejectedIds.has(event.id)) {
-      this.anomalies.push({ id: event.id, kind: 'orphaned-outcome', detail: `after-reject: outcome=${event.outcome} for rejected id` });
-    } else {
-      this.anomalies.push({ id: event.id, kind: 'orphaned-outcome', detail: `never-accepted: outcome=${event.outcome} without accepted attempt` });
-    }
+    // The switch that simulates a durability failure covers every seal, not only attempts.
+    if (this.unavailable) return;
+    // A correlated outcome is its operation's terminal record; an aborted outcome of an attempt the
+    // host did not accept is the record of an operation the tool declined to perform (§7.2, §10.4).
+    this.ledger.append(event, this.nextHostTs(), this.countersigner);
+    AuditHost.decide(signed);
+    session.outcomes.set(event.id, canonical);
   }
 
   records(): readonly SealedRecord[] {

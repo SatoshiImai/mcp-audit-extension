@@ -36,10 +36,43 @@ def has_unsafe_number(value: object) -> bool:
     return False
 
 
-def _assert_safe_numbers(value: object) -> None:
-    """Raise if any number is not canonicalizable (non-finite or outside +/-(2^53-1)) (§8.1)."""
+def _is_lone_surrogate(text: str) -> bool:
+    """Return True if the string holds a surrogate code point, which only a lone surrogate leaves."""
+    return any('\ud800' <= char <= '\udfff' for char in text)
+
+
+def has_lone_surrogate(value: object) -> bool:
+    """Return True if any string, member names included, is not a sequence of Unicode scalar values.
+
+    A lone surrogate has no UTF-8 encoding, so JCS cannot serialize it and ports diverge on it (§8.1).
+    ``json.loads`` joins a valid surrogate pair into one code point, so only a lone one remains.
+    """
+    if isinstance(value, str):
+        return _is_lone_surrogate(value)
+    if isinstance(value, dict):
+        return any(
+            (isinstance(key, str) and _is_lone_surrogate(key)) or has_lone_surrogate(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(has_lone_surrogate(item) for item in value)
+    return False
+
+
+def canonical_domain_error(value: object) -> str | None:
+    """Return why a value lies outside the §8.1 canonicalization domain, or None when it lies inside it."""
     if has_unsafe_number(value):
-        raise ValueError('a numeric value is not canonicalizable (non-finite or outside +/-(2^53-1)) (§8.1)')
+        return 'numeric-domain: a number is non-finite or outside +/-(2^53-1) (§8.1)'
+    if has_lone_surrogate(value):
+        return 'lone-surrogate: a string is not a sequence of Unicode scalar values (§8.1)'
+    return None
+
+
+def _assert_canonicalizable(value: object) -> None:
+    """Raise if the value lies outside the canonicalization domain (§8.1)."""
+    error = canonical_domain_error(value)
+    if error is not None:
+        raise ValueError(f'not canonicalizable: {error}')
 
 
 def canonicalize(value: object) -> str:
@@ -51,7 +84,7 @@ def canonicalize(value: object) -> str:
     Returns:
         The RFC 8785 canonical JSON string.
     """
-    _assert_safe_numbers(value)
+    _assert_canonicalizable(value)
     return rfc8785.dumps(value).decode('utf-8')
 
 

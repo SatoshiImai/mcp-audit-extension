@@ -13,7 +13,7 @@ from auditable_mcp.ledger import SealedRecord
 class EgressObservation:
     """An egress the host observed independently at the boundary."""
 
-    call_id: str
+    session_id: str
     destination: str
 
 
@@ -24,33 +24,33 @@ class BoundaryObserver:
         """Initialize with no observations."""
         self._observations: list[EgressObservation] = []
 
-    def observe_egress(self, call_id: str, destination: str) -> None:
+    def observe_egress(self, session_id: str, destination: str) -> None:
         """Record an observed egress for a call."""
-        self._observations.append(EgressObservation(call_id=call_id, destination=destination))
+        self._observations.append(EgressObservation(session_id=session_id, destination=destination))
 
-    def for_call(self, call_id: str) -> list[EgressObservation]:
+    def for_session(self, session_id: str) -> list[EgressObservation]:
         """Return the observations recorded for a given call."""
-        return [o for o in self._observations if o.call_id == call_id]
+        return [o for o in self._observations if o.session_id == session_id]
 
 
 @dataclass
 class ReconcileAnomaly:
     """A mismatch between self-reports and boundary observations."""
 
-    call_id: str
+    session_id: str
     kind: str
     destination: str
     detail: str
 
 
 def reconcile(
-    records: list[SealedRecord], observations: list[EgressObservation], call_id: str
+    records: list[SealedRecord], observations: list[EgressObservation], session_id: str
 ) -> list[ReconcileAnomaly]:
     """Compare self-reported egress against boundary observations for a call."""
     reported = {
-        r.event['target_resource']['ref'] for r in records if r.event['call_id'] == call_id and r.event['egress']
+        r.event['target_resource']['ref'] for r in records if r.event['session_id'] == session_id and r.event['egress']
     }
-    observed = {o.destination for o in observations if o.call_id == call_id}
+    observed = {o.destination for o in observations if o.session_id == session_id}
 
     # Reconciliation detects suppression by omission only (§7.5): an egress the boundary observed
     # but the tool never self-reported. The reverse (self-reported but boundary-unobserved) is not
@@ -60,7 +60,7 @@ def reconcile(
         if destination not in reported:
             anomalies.append(
                 ReconcileAnomaly(
-                    call_id=call_id,
+                    session_id=session_id,
                     kind='unreported-egress',
                     destination=destination,
                     detail='observed egress with no self-report',

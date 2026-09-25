@@ -14,9 +14,12 @@ from auditable_mcp.sql_analyst_tool import GEOCODER, SqlAnalystTool
 QUESTION = 'What were the high-value customer trends in the Tokyo area last month?'
 
 
+SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0'
+
+
 def _new_tool(host: AuditHost) -> SqlAnalystTool:
     """Build a SQL analyst tool bound to an in-process session."""
-    return SqlAnalystTool(AmcpSession(InProcessTransport(host), 'call_abc', DeterministicDeps()))
+    return SqlAnalystTool(AmcpSession(InProcessTransport(host), host.open_session(SESSION), DeterministicDeps()))
 
 
 def test_no_anomaly_when_matched() -> None:
@@ -24,8 +27,8 @@ def test_no_anomaly_when_matched() -> None:
     host = AuditHost('t#d')
     boundary = BoundaryObserver()
     _new_tool(host).analyze(QUESTION)
-    boundary.observe_egress('call_abc', GEOCODER)
-    assert reconcile(host.records(), boundary.for_call('call_abc'), 'call_abc') == []
+    boundary.observe_egress(SESSION, GEOCODER)
+    assert reconcile(host.records(), boundary.for_session(SESSION), SESSION) == []
 
 
 def test_detects_suppression() -> None:
@@ -34,8 +37,8 @@ def test_detects_suppression() -> None:
     boundary = BoundaryObserver()
     # The tool called out and the gateway saw it, but the tool emitted no audit event. This is
     # the suppression that signatures and sequence gaps cannot catch.
-    boundary.observe_egress('call_abc', GEOCODER)
-    anomalies = reconcile(host.records(), boundary.for_call('call_abc'), 'call_abc')
+    boundary.observe_egress(SESSION, GEOCODER)
+    anomalies = reconcile(host.records(), boundary.for_session(SESSION), SESSION)
     assert len(anomalies) == 1
     assert anomalies[0].kind == 'unreported-egress'
     assert anomalies[0].destination == GEOCODER
@@ -49,8 +52,8 @@ def test_anomalies_sorted_by_destination() -> None:
     # deliberately unsorted order that an accidentally pre-sorted iteration (which would let a
     # missing sort pass) is negligible (~1/720 per seed); the result must always be sorted.
     for destination in ['zeta', 'mid', 'alpha', 'yankee', 'bravo', 'kilo']:
-        boundary.observe_egress('call_abc', destination)
-    anomalies = reconcile(host.records(), boundary.for_call('call_abc'), 'call_abc')
+        boundary.observe_egress(SESSION, destination)
+    anomalies = reconcile(host.records(), boundary.for_session(SESSION), SESSION)
     assert [a.destination for a in anomalies] == ['alpha', 'bravo', 'kilo', 'mid', 'yankee', 'zeta']
 
 
@@ -59,7 +62,7 @@ def test_self_report_without_observation_is_not_flagged() -> None:
     host = AuditHost('t#d')
     boundary = BoundaryObserver()
     _new_tool(host).analyze(QUESTION)
-    assert reconcile(host.records(), boundary.for_call('call_abc'), 'call_abc') == []
+    assert reconcile(host.records(), boundary.for_session(SESSION), SESSION) == []
 
 
 def test_external_call_is_read_only_yet_egresses() -> None:

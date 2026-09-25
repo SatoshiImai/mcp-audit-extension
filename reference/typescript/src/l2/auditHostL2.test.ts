@@ -5,17 +5,18 @@ import { generateToolKey, KeyRegistry } from './keys.js';
 import { signEvent } from './signing.js';
 
 const L2_CAP = {
-  spec_version: 'auditable-mcp/0.2' as const,
+  spec_version: 'auditable-mcp/0.3' as const,
   level: 'L2' as const,
   attempt: 'request' as const,
+  countersign: 'none' as const,
 };
 
 function attempt(n: number): AuditEvent {
   return {
     id: `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`,
-    spec_version: 'auditable-mcp/0.2',
+    spec_version: 'auditable-mcp/0.3',
     ts: '2026-07-15T00:00:01.000Z',
-    call_id: 'call_abc',
+    session_id: SESSION,
     action_type: 'db.write',
     mutates: true,
     egress: false,
@@ -25,12 +26,16 @@ function attempt(n: number): AuditEvent {
   };
 }
 
+const SESSION = '0198f3a2-5c1e-7000-8000-00000000abc0';
+const OTHER_SESSION = '0198f3a2-5c1e-7000-8000-00000000abc1';
+
 function newL2Host() {
   const key = generateToolKey('tool-key-1');
   const registry = new KeyRegistry();
   registry.register(key.keyId, key.publicKey, key.alg);
   const host = new AuditHost('t#d', L2_CAP, registry);
-  return { host, key };
+  host.openSession(SESSION);
+  return { host, key, registry };
 }
 
 describe('AuditHost L2 policy', () => {
@@ -71,11 +76,19 @@ describe('AuditHost L2 policy', () => {
     expect(host.handleAttempt(replay)).toMatchObject({ status: 'reject', reason: 'replay-detected' });
   });
 
-  it('accepts a first observation with signer_seq > 0 as the baseline, without flagging a gap (§7.4)', () => {
+  it('flags a first signer_seq other than 0 in a session as a gap, and accepts the record (§7.4)', () => {
     const { host, key } = newL2Host();
-    // A key whose counter starts above 0 (persisted across restart, or reused across partitions).
     const res = host.handleAttempt(signEvent(attempt(1), key.keyId, 5, key.alg, key.privateKey));
     expect(res.status).toBe('accept');
+    expect(host.getAnomalies().map((a) => a.kind)).toEqual(['signer-seq-gap']);
+  });
+
+  it('numbers each session from 0, so one key serves concurrent calls without a gap (§7.4)', () => {
+    const { host, key } = newL2Host();
+    host.openSession(OTHER_SESSION);
+    expect(host.handleAttempt(signEvent(attempt(1), key.keyId, 0, key.alg, key.privateKey)).status).toBe('accept');
+    const other = { ...attempt(2), session_id: OTHER_SESSION };
+    expect(host.handleAttempt(signEvent(other, key.keyId, 0, key.alg, key.privateKey)).status).toBe('accept');
     expect(host.getAnomalies()).toHaveLength(0);
   });
 
@@ -100,7 +113,7 @@ describe('AuditHost L2 policy', () => {
     expect(host.records()).toHaveLength(3);
   });
 
-  it('advances the sequence only on seal: a retry after unavailable is accepted, not replay-rejected', () => {
+  it('does not move the replay bound on unavailable: the identical attempt sent again is accepted (§7.1, §7.4)', () => {
     const { host, key } = newL2Host();
     host.unavailable = true;
     const signed = signEvent(attempt(1), key.keyId, 0, key.alg, key.privateKey);
@@ -108,19 +121,92 @@ describe('AuditHost L2 policy', () => {
     host.unavailable = false;
     expect(host.handleAttempt(signed).status).toBe('accept');
     expect(host.records()).toHaveLength(1);
+    expect(host.getAnomalies()).toHaveLength(0);
   });
 
-  it('does not flag a fail-closed aborted outcome under L2 as a sequence gap (§10.4)', () => {
+  it('seals the aborted outcome of an unavailable attempt without flagging a gap (§7.2, §7.4)', () => {
     const { host, key } = newL2Host();
     host.unavailable = true;
-    // Attempt seq 0 is refused (unavailable), never sealed, so the sequence never advances.
     expect(host.handleAttempt(signEvent(attempt(1), key.keyId, 0, key.alg, key.privateKey)).status).toBe('unavailable');
     host.unavailable = false;
-    // The tool honors §11.3 and emits a signed aborted outcome; the signer's next sequence (1)
-    // outran the unsealed attempt. This must not be flagged as a suppression gap.
+    // The tool gives up and emits its signed refusal at the next value; the host received 0, so 1 is
+    // no gap, and the refusal is sealed.
     const aborted = signEvent({ ...attempt(1), outcome: 'aborted', reason: 'host-unavailable' }, key.keyId, 1, key.alg, key.privateKey);
     host.handleOutcome(aborted);
     expect(host.getAnomalies()).toHaveLength(0);
-    expect(host.records()).toHaveLength(0);
+    expect(host.records()).toHaveLength(1);
+  });
+
+  it('continues the sequence after a rejected attempt: its refusal and the next attempt are no gap (§7.4)', () => {
+    const { host, key } = newL2Host();
+    // A reject after the signature verified is a decision: the replay bound moves past it.
+    host.handleAttempt(signEvent(attempt(1), key.keyId, 0, key.alg, key.privateKey));
+    const duplicate = signEvent({ ...attempt(1), ts: '2026-07-15T00:00:09.000Z' }, key.keyId, 1, key.alg, key.privateKey);
+    expect(host.handleAttempt(duplicate)).toMatchObject({ status: 'reject', reason: 'replay-detected' });
+    const next = signEvent(attempt(3), key.keyId, 2, key.alg, key.privateKey);
+    expect(host.handleAttempt(next).status).toBe('accept');
+    expect(host.getAnomalies().some((a) => a.kind === 'signer-seq-gap')).toBe(false);
+  });
+  it('keeps the set of decided values: a value sent again after unavailable is accepted even below a decided one (§7.4)', () => {
+    const { host, key } = newL2Host();
+    const first = signEvent(attempt(1), key.keyId, 0, key.alg, key.privateKey);
+    host.unavailable = true;
+    expect(host.handleAttempt(first).status).toBe('unavailable');
+    host.unavailable = false;
+    expect(host.handleAttempt(signEvent(attempt(2), key.keyId, 1, key.alg, key.privateKey)).status).toBe('accept');
+    expect(host.handleAttempt(first).status).toBe('accept');
+    // A repeat of the decided value 1 under another id is a replay.
+    expect(host.handleAttempt(signEvent(attempt(3), key.keyId, 1, key.alg, key.privateKey))).toMatchObject({
+      status: 'reject',
+      reason: 'replay-detected',
+    });
+    expect(host.getAnomalies().map((a) => a.kind)).toEqual(['replay-detected']);
+    expect(host.records()).toHaveLength(2);
+  });
+
+  it('counts an outcome as received when the host is unavailable for it, so the next value is no gap (§7.4)', () => {
+    const { host, key } = newL2Host();
+    host.handleAttempt(signEvent(attempt(1), key.keyId, 0, key.alg, key.privateKey));
+    host.unavailable = true;
+    host.handleOutcome(signEvent({ ...attempt(1), outcome: 'success' }, key.keyId, 1, key.alg, key.privateKey));
+    host.unavailable = false;
+    expect(host.handleAttempt(signEvent(attempt(2), key.keyId, 2, key.alg, key.privateKey)).status).toBe('accept');
+    expect(host.getAnomalies().some((a) => a.kind === 'signer-seq-gap')).toBe(false);
+  });
+
+  it('records dropped outcomes under their Tier-1 anomaly kinds and never throws (§6)', () => {
+    const { host, key } = newL2Host();
+    const stranger = generateToolKey('stranger');
+    host.handleAttempt(signEvent(attempt(1), key.keyId, 0, key.alg, key.privateKey));
+    const success = { ...attempt(1), outcome: 'success' as const };
+    host.handleOutcome(success); // unsigned
+    host.handleOutcome(signEvent(success, stranger.keyId, 1, stranger.alg, stranger.privateKey)); // unknown key
+    host.handleOutcome({ ...signEvent(success, key.keyId, 1, key.alg, key.privateKey), mutates: false }); // bad signature
+    host.handleOutcome(signEvent({ ...attempt(9), outcome: 'aborted', reason: 'host-rejected' }, key.keyId, 0, key.alg, key.privateKey)); // decided
+    host.handleOutcome({ ...success, signature: 'AAAA' }); // partial Level-2 trio
+    expect(host.getAnomalies().map((a) => a.kind)).toEqual([
+      'signature-invalid',
+      'signature-invalid',
+      'signature-invalid',
+      'replay-detected',
+      'schema-invalid',
+    ]);
+    expect(host.records()).toHaveLength(1);
+  });
+
+  it('checks the outcome signature before correlation: a forged orphan is signature-invalid, not orphaned (§7.2)', () => {
+    const { host, key } = newL2Host();
+    const forged = { ...signEvent({ ...attempt(5), outcome: 'success' }, key.keyId, 0, key.alg, key.privateKey), mutates: false };
+    host.handleOutcome(forged);
+    expect(host.getAnomalies().map((a) => a.kind)).toEqual(['signature-invalid']);
+  });
+
+  it('rejects an event under a revoked key as unknown-key (§10.9)', () => {
+    const { host, key, registry } = newL2Host();
+    registry.revoke(key.keyId);
+    expect(host.handleAttempt(signEvent(attempt(1), key.keyId, 0, key.alg, key.privateKey))).toMatchObject({
+      status: 'reject',
+      reason: 'unknown-key',
+    });
   });
 });

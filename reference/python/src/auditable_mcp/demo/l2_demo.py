@@ -34,13 +34,13 @@ def _print_ledger(records: list[SealedRecord]) -> None:
         )
 
 
-def _attempt_for(key: ToolKey, seq: int, ref: str) -> dict:
+def _attempt_for(key: ToolKey, session_id: str, seq: int, ref: str) -> dict:
     """Build and sign an attempt event with an explicit signer_seq."""
     base = {
         'id': f'00000000-0000-4000-8000-{seq + 1:012x}',
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': 'auditable-mcp/0.3',
         'ts': '2026-07-16T00:00:00.000Z',
-        'call_id': 'call_adv',
+        'session_id': session_id,
         'action_type': 'db.write',
         'mutates': True,
         'egress': False,
@@ -67,17 +67,20 @@ def main() -> None:
     logger.info('\n[1] Signed path - same tool code + a signer => L2 (portable escalation):')
     host = AuditHost('acme#2026-07-16', L2_CAP, registry)
     signer = KeySigner(key.key_id, key.alg, key.private_key)
-    session = AmcpSession(InProcessTransport(host), 'call_abc', DeterministicDeps(), signer)
+    session = AmcpSession(InProcessTransport(host), host.open_session(), DeterministicDeps(), signer)
     tool = SqlAnalystTool(session)
     tool.analyze('What were the high-value customer trends in the Tokyo area last month?')
     _print_ledger(host.records())
-    report = verify_ledger(host.records(), host.ledger.digest())
-    verdict = 'VERIFIED' if report.ok else 'FAILURE'
-    logger.info(f'  verify: {verdict}  (signatures accepted, chain intact)')
+    report = verify_ledger(host.records(), host.ledger.digest(), key_registry=registry)
+    verdict = 'VERIFIED' if report.complete else 'FAILURE'
+    logger.info(f'  verify: {verdict}  (signatures verified, chain intact)')
 
     logger.info('\n[2] Forgery - a signed record altered after signing is rejected:')
     h2 = AuditHost('acme#adv', L2_CAP, registry)
-    forged = {**_attempt_for(key, 0, 'notes'), 'target_resource': {'kind': 'table', 'ref': 'salaries'}}
+    forged = {
+        **_attempt_for(key, h2.open_session(), 0, 'notes'),
+        'target_resource': {'kind': 'table', 'ref': 'salaries'},
+    }
     res = h2.handle_attempt(forged)
     logger.info(f'  altered target notes->salaries -> {res.status} ({res.reason})')
     logger.info(f'  ledger records: {len(h2.records())} (invalid record kept out)')
@@ -86,9 +89,9 @@ def main() -> None:
     h3 = AuditHost('acme#adv', L2_CAP, registry)
     unsigned = {
         'id': '00000000-0000-4000-8000-0000000000aa',
-        'spec_version': 'auditable-mcp/0.2',
+        'spec_version': 'auditable-mcp/0.3',
         'ts': '2026-07-16T00:00:00.000Z',
-        'call_id': 'call_adv',
+        'session_id': h3.open_session(),
         'action_type': 'db.write',
         'mutates': True,
         'egress': False,
@@ -101,8 +104,9 @@ def main() -> None:
 
     logger.info('\n[4] Sequence gap - a suppressed event leaves a hole the host detects:')
     h4 = AuditHost('acme#adv', L2_CAP, registry)
-    h4.handle_attempt(_attempt_for(key, 0, 'notes'))
-    res = h4.handle_attempt(_attempt_for(key, 2, 'notes'))
+    session4 = h4.open_session()
+    h4.handle_attempt(_attempt_for(key, session4, 0, 'notes'))
+    res = h4.handle_attempt(_attempt_for(key, session4, 2, 'notes'))
     kinds = ', '.join(a.kind for a in h4.anomalies())
     logger.info(f'  emit seq 0 then seq 2 -> seq2 {res.status}; anomalies: {kinds}')
 
@@ -110,8 +114,9 @@ def main() -> None:
     h5 = AuditHost('acme#adv', L2_CAP, registry)
     boundary = BoundaryObserver()
     # The gateway saw an egress, but the tool emitted no matching audit event.
-    boundary.observe_egress('call_adv', 'https://external-llm.example/v1/chat')
-    for anomaly in reconcile(h5.records(), boundary.for_call('call_adv'), 'call_adv'):
+    session5 = h5.open_session()
+    boundary.observe_egress(session5, 'https://external-llm.example/v1/chat')
+    for anomaly in reconcile(h5.records(), boundary.for_session(session5), session5):
         logger.info(f'  {anomaly.kind}: {anomaly.destination} ({anomaly.detail})')
 
     logger.info(_RULE)
