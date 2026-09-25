@@ -50,7 +50,7 @@ Makes the extension real on the MCP wire and separates who recorded a chain from
 
 - `spec/schema/*.json` and `spec/vectors/*.json` are regenerated at v0.3; both chain vectors were reproduced byte-for-byte at v0.2 before regeneration, and the v0.3 output was recomputed independently from the §8.2 preimage.
 - **New vectors cover what v0.3 adds:** `chain-witnessed.json` (the same chain as `chain.json` plus `host_signature`, `host_key_id`, and the witness-signature preimage, pinned to the same `record_hash` values and the same digest), and two `events.json` entries for the new abort reasons. Folding the witness signature into the §8.2 preimage moves the digest, so the vector fails if an implementation gets that wrong.
-- **Normative references:** [SEP-2133] and [SEP-3004] move from Informative to Normative, since §6.1 and §10.10 place requirements on them. [SCITT] and [NIST-SP-800-53] are added as informative. The TypeScript and Python reference implementations under `reference/` are **not yet aligned to v0.3**.
+- **Normative references:** [SEP-2133] and [SEP-3004] move from Informative to Normative, since §6.1 and §10.10 place requirements on them. [SCITT] and [NIST-SP-800-53] are added as informative. [RFC-9162] is added as informative, for the contrast §7.1 draws between a log that answers with a promise and one that answers with a position.
 
 ### Reference implementations
 
