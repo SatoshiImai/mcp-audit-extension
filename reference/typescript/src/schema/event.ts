@@ -1,10 +1,11 @@
 import { z } from 'zod/v4';
+import { SALTED_HASH_PATTERN } from '../ledger/saltedHash.js';
 
 // Core audit event - one schema for L1 and L2. The trust-establishing fields
 // (signer_seq/key_id/signature) are optional, so an L2 event also validates as an L1 event; an
 // unsigned L1 event is rejected by an L2 host (§7.4).
 
-export const SPEC_VERSION = 'auditable-mcp/0.3';
+export const SPEC_VERSION = 'auditable-mcp/0.4';
 
 // Tool-internal events emit only attempted/success/failed/aborted; denied/expired are
 // host tools/call-boundary outcomes.
@@ -48,13 +49,16 @@ export const auditEventSchema = z
 
     // --- audit context (confidentiality is the tool's choice; §4.3) ---
     // action_context: cleartext metadata about the internal operation, redacted at the tool's
-    // discretion. action_context_hash: a commitment to the exact internal context. Independent
-    // and both optional; a host must not require them to correspond.
+    // discretion. action_context_hash: the unsalted hash of the exact internal context.
+    // action_context_salted_hash: its salted hash (saltedHash.ts), for a host in another
+    // organization or a context with few possible values. Independent and all optional; a host must
+    // not require them to correspond.
     action_context: z.record(z.string(), z.unknown()).optional(),
     action_context_hash: z
       .string()
       .regex(/^sha256:[0-9a-f]{64}$/)
       .optional(),
+    action_context_salted_hash: z.string().regex(SALTED_HASH_PATTERN).optional(),
 
     // --- Level 2 only (optional; a single schema covers both levels) ---
     signer_seq: z.number().int().nonnegative().optional(), // per (key_id, session_id), from 0 (§7.4)

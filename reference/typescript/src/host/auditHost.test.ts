@@ -13,7 +13,7 @@ const OTHER = '0198f3a2-5c1e-7000-8000-00000000abc1';
 function attempt(overrides: Partial<AuditEvent> = {}): AuditEvent {
   return {
     id: '00000000-0000-4000-8000-000000000001',
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts: new Date(1_000_000).toISOString(),
     session_id: SESSION,
     action_type: 'db.write',

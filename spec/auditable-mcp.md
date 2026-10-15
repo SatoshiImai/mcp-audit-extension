@@ -1,11 +1,11 @@
 # Auditable MCP
 
 - **Status:** Draft proposal. Experimental below 1.0: the wire contract may change between draft revisions, signalled by `spec_version` (§6.1).
-- **Version:** `auditable-mcp/0.3`
+- **Version:** `auditable-mcp/0.4`
 - **Author:** Satoshi Imai
 - **License:** MIT
 
-> **v0.3 (draft).** See [CHANGELOG.md](../CHANGELOG.md) for the changes from v0.2 and the backward-compatibility notes.
+> **v0.4 (draft).** See [CHANGELOG.md](../CHANGELOG.md) for the changes from v0.3 and the backward-compatibility notes.
 
 ## Abstract
 
@@ -73,7 +73,7 @@ An event is a JSON object [RFC-8259]. Its normative schema is
 | Field                 | Type              | Presence | Notes                                                                                                                                                                                                                                                                                            |
 | --------------------- | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `id`                  | UUID              | REQUIRED | Tool-generated UUID [RFC-9562] (SHOULD be version 4 or 7; the nil UUID SHOULD NOT be used), fresh for each operation. Correlation key for one operation within its audit session: the `attempt` and its terminal `outcome` share it (§7.2). De-duplication key for attempts (§7.1).                                                                        |
-| `spec_version`        | string            | REQUIRED | MUST be `auditable-mcp/0.3`.                                                                                                                                                                                                                                                                     |
+| `spec_version`        | string            | REQUIRED | MUST be `auditable-mcp/0.4`.                                                                                                                                                                                                                                                                     |
 | `ts`                  | ISO-8601 datetime | REQUIRED | Tool-observed time (advisory; host time is authoritative). MUST be UTC with a `Z` suffix, no numeric offset (per the schema pattern).                                                                                                                                                            |
 | `session_id`          | UUID              | REQUIRED | The audit session the event belongs to (§6.3): the `session_id` the host issued for the parent `tools/call`, verbatim; never the nil UUID. Scopes `signer_seq` (§7.4) and binds the event to the call it was emitted for, so an event cannot be replayed into another session (§7.1). |
 | `traceparent`         | string            | OPTIONAL | W3C Trace Context [W3C-Trace-Context] `traceparent` header value.                                                                                                                                                                                                                                |
@@ -85,6 +85,7 @@ An event is a JSON object [RFC-8259]. Its normative schema is
 | `reason`              | string            | OPTIONAL | REQUIRED on an `aborted` outcome (enforced by schema): a Tier-1 abort code `hash-mismatch` &#124; `host-rejected` &#124; `host-unavailable` &#124; `host-uncountersigned` &#124; `host-signature-invalid` (§7.2, §7.6). SHOULD be omitted on other outcomes; domain detail goes in `action_context`. |
 | `action_context`      | object            | OPTIONAL | Cleartext metadata about the internal operation, redacted at the tool's discretion (§4.3).                                                                                                                                                                                                       |
 | `action_context_hash` | string            | OPTIONAL | `sha256:<hex>` commitment to the exact internal context (§4.3).                                                                                                                                                                                                                                  |
+| `action_context_salted_hash` | string | OPTIONAL | The salted hash of the exact internal context, as SD-JWT [RFC-9901] computes the digest of a Disclosure (§4.3). |
 | `signer_seq`          | integer           | OPTIONAL | Level 2. The tool's counter per (`key_id`, `session_id`), starting at 0 (§7.4). Distinct from the host-assigned ledger `seq` (§7.1). |
 | `key_id`              | string            | OPTIONAL | Level 2. Identifies the signing key; binds the signature algorithm via the registry (§5.1).                                                                                                                                                                                                      |
 | `signature`           | string            | OPTIONAL | Level 2. Detached signature, base64url without padding (§5.1, §8.2). |
@@ -128,10 +129,16 @@ A tool describes an operation through either, both, or neither of two independen
 
 - `action_context` (OPTIONAL): cleartext metadata about the internal operation, such as the database tables an internally generated query touched. The tool SHOULD redact or omit any field whose disclosure is not warranted before emission.
 - `action_context_hash` (OPTIONAL): the `sha256:<hex>` digest of the canonical form (§8) of the exact internal context (the `sha256:` prefix names the hash algorithm; only SHA-256 is defined in this version). It seals a commitment to what the tool did without disclosing it. The commitment is opened later, becoming verifiable when the exact context is revealed (whether disclosed by the tool itself or reconstructed from independent records such as egress or downstream logs).
+- `action_context_salted_hash` (OPTIONAL): the salted hash of the exact internal context, a commitment that, unlike `action_context_hash`, cannot be opened by guessing. An unsalted hash of a context drawn from few possible values - a customer from a known list, an amount of a known magnitude - is recovered by hashing each candidate and comparing; a party that can enumerate the candidates learns the context. The salted hash is the construction SD-JWT uses for an array element [RFC-9901] §4.2.2 and §4.2.3, applied to the whole context:
+  - the tool chooses a salt, a fresh base64url string of at least 128 bits of cryptographically secure randomness per event, as [RFC-9901] §4.2.1 recommends;
+  - the **Disclosure** is the base64url encoding, without padding, of the UTF-8 bytes of the JSON array `[salt, context]`, where `context` is the exact internal context as a JSON object;
+  - `action_context_salted_hash` is the base64url encoding, without padding, of the SHA-256 digest of the ASCII bytes of the Disclosure ([RFC-9901] §4.2.3, with its default hash algorithm `sha-256`). Only SHA-256 is defined in this version.
 
-These fields do not need to correspond. A host MUST NOT require `action_context_hash` to match the hash of the possibly-redacted `action_context`. A tool SHOULD provide at least one of them if the internal context carries audit value.
+  The digest is taken over the Disclosure string as the tool encoded it, so the JSON inside it need not be canonical (§8): whoever is to open the hash is handed that exact string, recomputes the digest, and compares. A tool that may be asked to open the hash MUST retain the Disclosure, or the salt and the exact string it encoded, for as long as the record may be audited; a Disclosure is opened to whom the tool's policy allows, outside this protocol. A tool SHOULD use `action_context_salted_hash` rather than `action_context_hash` when the host belongs to another organization, or when the context is drawn from few possible values.
 
-Irrespective of a tool's disclosure policy, credentials, secret values, and raw authentication tokens MUST NOT appear in any field of an event. Personally identifiable information (PII) SHOULD be redacted or omitted in accordance with the operator's policy. The ledger is append-only; tools SHOULD use `action_context_hash` for sensitive context to prevent irreversible plaintext disclosure.
+These fields do not need to correspond. A host MUST NOT require `action_context_hash` or `action_context_salted_hash` to match the possibly-redacted `action_context`, and does not open either. A tool SHOULD provide at least one of them if the internal context carries audit value.
+
+Irrespective of a tool's disclosure policy, credentials, secret values, and raw authentication tokens MUST NOT appear in any field of an event. Personally identifiable information (PII) SHOULD be redacted or omitted in accordance with the operator's policy. The ledger is append-only; tools SHOULD use `action_context_hash` or `action_context_salted_hash` for sensitive context to prevent irreversible plaintext disclosure.
 
 ## 5. Conformance levels and the countersignature axis
 
@@ -226,7 +233,7 @@ The capability object declares the operational parameters of the audit subsystem
 
 | Field          | Type   | Presence | Notes                                                                                                                                                                                                                                                                                      |
 | -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `spec_version` | string | REQUIRED | The Auditable MCP version the participant supports (e.g., `auditable-mcp/0.3`). Establishes a common version before any event, which carries `spec_version` (§4), is exchanged.                                                                                                              |
+| `spec_version` | string | REQUIRED | The Auditable MCP version the participant supports (e.g., `auditable-mcp/0.4`). Establishes a common version before any event, which carries `spec_version` (§4), is exchanged.                                                                                                              |
 | `level`        | string | REQUIRED | MUST be `"L1"` or `"L2"`. The negotiated assurance level.                                                                                                                                                                                                                                  |
 | `attempt`      | string | REQUIRED | MUST be `"request"`. An attempt is answered before the tool acts, and the tool fails closed without the answer. A single permitted value in this version; it is a forward-compatibility placeholder reserving the field for a future non-blocking mode.                                    |
 | `countersign`  | string | REQUIRED | MUST be `"none"` or `"host"` (§5.2). `"host"` means sealed records carry a countersignature - a host declaring it will countersign, a tool declaring it requires one. `"none"` means they do not. Unlike `level`, the obligation on this axis falls on the host, so the roles of requirement and offer are reversed. |
@@ -533,7 +540,7 @@ Because the `signature` bytes are hashed verbatim, a host MUST NOT apply any cry
 
 The host MUST persist and re-serve the exact `host_ts` string it assigned (in the `accept` response and in the sealed record), byte-for-byte; it MUST NOT round-trip `host_ts` through a datetime type that could renormalize it (fractional digits, offset form), since `host_ts` is hashed into the preimage and any renormalization would break Polluted Stop and cross-verifier agreement. The schema pins `host_ts` to UTC `Z`.
 
-The chain hashes (`record_hash`, `previous_hash`, and the tail digest) are bare hex (lowercase), fixed to SHA-256 by this version of the preimage construction. This differs from `action_context_hash` (§4.3), which carries an algorithm prefix (`sha256:<hex>`): the context hash is a tool-authored commitment that may need to name its algorithm as the field evolves, whereas the chain hash algorithm is version-pinned and needs no self-description. The chain hash algorithm MUST NOT vary within a `spec_version`; changing it is a new `spec_version`, never an in-band negotiation.
+The chain hashes (`record_hash`, `previous_hash`, and the tail digest) are bare hex (lowercase), fixed to SHA-256 by this version of the preimage construction. This differs from `action_context_hash` (§4.3), which carries an algorithm prefix (`sha256:<hex>`), and from `action_context_salted_hash`, which is base64url as SD-JWT writes a digest: the context hash is a tool-authored commitment that may need to name its algorithm as the field evolves, whereas the chain hash algorithm is version-pinned and needs no self-description. The chain hash algorithm MUST NOT vary within a `spec_version`; changing it is a new `spec_version`, never an in-band negotiation.
 
 If Level 2 signatures are used, the signature MUST be computed and verified over the RFC 8785 canonical form of the event with the `signature` field itself removed, to prevent self-referential forgery.
 
@@ -593,7 +600,7 @@ A signature proves an event's authorship and integrity in transit, not the truth
 
 ### 10.3 Data-at-Rest Minimization
 
-Because the host's ledger is append-only, any sensitive value written to `action_context` in cleartext is permanent and cannot be erased (e.g., conflicting with GDPR Right to Erasure). Implementations SHOULD prefer `action_context_hash` for sensitive internal context (§4.3), keeping only a verifiable commitment - not the data - in the immutable ledger.
+Because the host's ledger is append-only, any sensitive value written to `action_context` in cleartext is permanent and cannot be erased (e.g., conflicting with GDPR Right to Erasure). Implementations SHOULD prefer `action_context_hash`, or `action_context_salted_hash` where the context can be guessed, for sensitive internal context (§4.3), keeping only a verifiable commitment - not the data - in the immutable ledger. The Disclosure that opens a salted hash is held by the tool, outside the ledger, and can be destroyed; the commitment then stays sealed and can no longer be opened.
 
 ### 10.4 Handling of Aborted Outcomes
 
@@ -784,6 +791,7 @@ For example, `example.com/rows-exceeded`. Because every Tier-2 code contains a `
 - **[RFC-7515]** Jones, M., Bradley, J., and N. Sakimura, "JSON Web Signature (JWS)", RFC 7515, May 2015.
 - **[RFC-7518]** Jones, M., "JSON Web Algorithms (JWA)", RFC 7518, May 2015.
 - **[RFC-9864]** Jones, M. and O. Steele, "Fully-Specified Algorithms for JSON Object Signing and Encryption (JOSE) and CBOR Object Signing and Encryption (COSE)", RFC 9864, October 2025.
+- **[RFC-9901]** Fett, D., Yasuda, K., and B. Campbell, "Selective Disclosure for JSON Web Tokens", RFC 9901, November 2025.
 - **[RFC-5234]** Crocker, D., Ed. and P. Overell, "Augmented BNF for Syntax Specifications: ABNF", STD 68, RFC 5234, January 2008.
 - **[RFC-1123]** Braden, R., Ed., "Requirements for Internet Hosts - Application and Support", STD 3, RFC 1123, October 1989.
 - **[RFC-9562]** Davis, K., Peabody, B., and P. Leach, "Universally Unique IDentifiers (UUIDs)", RFC 9562, May 2024.

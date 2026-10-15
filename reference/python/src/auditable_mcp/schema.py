@@ -24,7 +24,7 @@ from auditable_mcp.paths import SPEC_SCHEMA_DIR
 
 # The published versions before this one, whose sealed records a verifier reads under their own
 # schema (§11.4).
-EARLIER_VERSIONS = ('0.1', '0.1.1', '0.2')
+EARLIER_VERSIONS = ('0.1', '0.1.1', '0.2', '0.3')
 
 _UNESCAPED_DOLLAR = re.compile(r'(?<!\\)\$')
 

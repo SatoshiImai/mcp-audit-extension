@@ -8,7 +8,7 @@ import { AUDIT_ATTEMPT_METHOD, AuditAttemptResultSchema } from '../transport/mcp
 function event(sessionId: string): Record<string, unknown> {
   return {
     id: '00000000-0000-4000-8000-0000000000aa',
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts: '2026-07-15T00:00:01.000Z',
     session_id: sessionId,
     action_type: 'db.read',

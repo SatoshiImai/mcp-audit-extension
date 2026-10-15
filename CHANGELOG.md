@@ -4,6 +4,23 @@ All notable changes to the Auditable MCP specification are documented here. The 
 
 This changelog is informative. Normative force (the RFC 2119 keywords) lives only in the specification; the summaries below merely describe it.
 
+## v0.4 - unreleased
+
+Adds a salted hash of the internal context. Driven by Auditable A2A, where the host that seals a tool's records belongs to another organization: an unsalted `action_context_hash` of a context drawn from few possible values is recovered by hashing each candidate, so it does not keep the context from that host.
+
+### Breaking changes
+
+- **`spec_version` advances `auditable-mcp/0.3` -> `auditable-mcp/0.4`.** The version string is part of the canonical event bytes, so all golden digests change. New digests: Level-1 sealed chain `451143ab...`, Level-2 signed chain `f575ea15...`. The event schema is closed and `spec_version` is compared before any audit message (§6.1), so a 0.3 and a 0.4 participant do not negotiate audit; the extension identifier does not change.
+
+### Added (normative)
+
+- **`action_context_salted_hash`** (§4, §4.3), OPTIONAL: the SD-JWT digest ([RFC-9901] §4.2.2, §4.2.3) of a Disclosure `[salt, context]` of the whole internal context, base64url without padding, SHA-256. The salt is at least 128 bits, fresh per event. A tool SHOULD use it rather than `action_context_hash` when the host belongs to another organization or the context is drawn from few possible values, and MUST retain the Disclosure if it may be asked to open the hash. A host does not open it and does not require it to match `action_context`.
+- **New vectors:** `vectors/salted-hash.json` (RFC 9901 §4.2.2's own example, and contexts as this specification discloses them), and an event carrying the new field in `vectors/events.json`.
+
+### Unchanged
+
+- **`action_context_hash`** keeps its construction and its `sha256:<hex>` form. Records sealed under earlier versions verify as before; `schema/earlier/0.3/` holds the 0.3 event schema for that purpose.
+
 ## v0.3 - 2026-09-25
 
 Makes the extension real on the MCP wire, and makes it survive the wire changing. Driven by three findings: [SEP-2133] made `capabilities.extensions` the place an extension declares itself (shipping in MCP protocol version `2026-07-28`); MCP `2026-07-28` removed both the initialization handshake and server-initiated requests, the two things an in-call audit exchange had rested on; and a tool with no documented fallback would fail closed against every host that does not speak this extension - which is every ordinary MCP host.

@@ -75,7 +75,7 @@ export interface ExpectedIdentity {
 // Records sealed under an earlier published version are read under that version's schema and
 // signature encoding (§11.4): before 0.3 an event named its call `call_id` and encoded its signature
 // as padded standard base64. The schemas are the published bytes of those versions.
-const EARLIER_VERSIONS = ['0.1', '0.1.1', '0.2'] as const;
+const EARLIER_VERSIONS = ['0.1', '0.1.1', '0.2', '0.3'] as const;
 // Published versions in order; a chain's versions do not go backwards (§11.4).
 const VERSION_RANK = new Map<string, number>([...EARLIER_VERSIONS.map((v) => `auditable-mcp/${v}`), SPEC_VERSION].map((v, i) => [v, i]));
 const ajv = new Ajv2020({ strict: false, validateFormats: false });

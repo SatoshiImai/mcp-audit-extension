@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { SPEC_VECTORS_DIR } from '../paths.js';
 import { canonicalDomainError, canonicalize, sha256Hex } from '../ledger/canonical.js';
 import { computeRecordHash, countersignaturePayload, GENESIS_HASH } from '../ledger/ledger.js';
+import { disclosureOf, saltedHashOf } from '../ledger/saltedHash.js';
 import { KeySigner, signEvent } from '../l2/signing.js';
 import { runCleanScenario } from '../demo/scenario.js';
 import type { AuditEvent } from '../schema/event.js';
@@ -190,6 +191,7 @@ async function build(): Promise<Array<[string, unknown]>> {
     }),
   };
 
+  const saltedHash = saltedHashVectors();
   return [
     ['canonicalization.json', canonicalization],
     ['events.json', events],
@@ -200,7 +202,35 @@ async function build(): Promise<Array<[string, unknown]>> {
     ['signer-seq-accounting.json', ACCOUNTING_CASES],
     ['signer-seq-replay.json', replay],
     ['verifier-cases.json', verifier],
+    ['salted-hash.json', saltedHash],
   ];
+}
+
+interface SaltedHashVector {
+  name: string;
+  disclosure: string;
+  decoded: unknown;
+  salted_hash: string;
+}
+
+// §4.3: the salted hash is taken over the Disclosure string as encoded. The first case is RFC 9901
+// §4.2.2's own example (an array-element Disclosure, with a space after the comma), reproduced so a
+// port can check its digest against the RFC; the others are contexts disclosed as this
+// specification uses them.
+function saltedHashVectors(): SaltedHashVector[] {
+  const rfc = 'WyJsa2x4RjVqTVlsR1RQVW92TU5JdkNBIiwgIlVTIl0';
+  const cases: SaltedHashVector[] = [
+    { name: 'rfc9901-4.2.2-example', disclosure: rfc, decoded: ['lklxF5jMYlGTPUovMNIvCA', 'US'], salted_hash: saltedHashOf(rfc) },
+  ];
+  const contexts: Array<{ name: string; salt: string; context: Record<string, unknown> }> = [
+    { name: 'context', salt: '_26bc4LT-ac6q2KI6cBW5w', context: { table: 'customers', rows: 3 } },
+    { name: 'context-non-ascii', salt: 'eluV5Og3gSNII8EYnsxA_A', context: { customer: '山田太郎', amount: 1200000 } },
+  ];
+  for (const c of contexts) {
+    const disclosure = disclosureOf(c.salt, c.context);
+    cases.push({ name: c.name, disclosure, decoded: [c.salt, c.context], salted_hash: saltedHashOf(disclosure) });
+  }
+  return cases;
 }
 
 async function main(): Promise<void> {

@@ -52,7 +52,7 @@ const SESSION_B = '0198f3a2-5c1e-7000-8000-00000000abc1';
 function ev(n: number, outcome: AuditEvent['outcome'], extra: Record<string, unknown> = {}): AuditEvent {
   return {
     id: `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`,
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts: '2026-07-15T00:00:01.000Z',
     session_id: SESSION_A,
     action_type: 'db.write',

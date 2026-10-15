@@ -6,7 +6,7 @@ import { signEvent, verifyEventSignature, KeySigner } from './signing.js';
 function baseEvent(): AuditEvent {
   return {
     id: '00000000-0000-4000-8000-000000000001',
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts: '2026-07-15T00:00:01.000Z',
     session_id: '0198f3a2-5c1e-7000-8000-00000000abc0',
     action_type: 'db.write',

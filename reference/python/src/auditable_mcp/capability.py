@@ -14,7 +14,7 @@ differently: the tool sends no audit message at all and serves the call as an or
 
 from dataclasses import dataclass
 
-SPEC_VERSION = 'auditable-mcp/0.3'
+SPEC_VERSION = 'auditable-mcp/0.4'
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,7 @@ class AuditCapability:
     before events (which carry spec_version) are exchanged (§6.1). All four fields are REQUIRED.
     """
 
-    spec_version: str = SPEC_VERSION  # supported version, e.g. auditable-mcp/0.3
+    spec_version: str = SPEC_VERSION  # supported version, e.g. auditable-mcp/0.4
     level: str = 'L1'  # 'L1' | 'L2'
     attempt: str = 'request'  # attempt is always a blocking request (fail-closed)
     countersign: str = 'none'  # 'none' | 'host' - the host offers it, the tool requires it (§5.2)

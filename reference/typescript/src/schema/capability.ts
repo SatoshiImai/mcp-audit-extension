@@ -7,7 +7,7 @@ import { SPEC_VERSION } from './event.js';
 // version is established before events (which carry spec_version) are exchanged. All four fields
 // are REQUIRED.
 export const auditCapabilitySchema = z.strictObject({
-  spec_version: z.string(), // supported Auditable MCP version, e.g. auditable-mcp/0.3
+  spec_version: z.string(), // supported Auditable MCP version, e.g. auditable-mcp/0.4
   level: z.enum(['L1', 'L2']),
   attempt: z.literal('request'), // attempt is always a blocking request (fail-closed)
   countersign: z.enum(['none', 'host']), // the host offers it, the tool requires it (§5.2)

@@ -45,7 +45,7 @@ To verify the cross-language byte-for-byte conformance and see the integrity enf
 
 ## Status
 
-Draft proposal - `auditable-mcp/0.3`.
+Draft proposal - `auditable-mcp/0.4`.
 
 ## Author & License
 
