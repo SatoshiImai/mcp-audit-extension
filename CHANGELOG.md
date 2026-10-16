@@ -16,6 +16,7 @@ Adds a salted hash of the internal context. Driven by Auditable A2A, where the h
 
 - **`action_context_salted_hash`** (§4, §4.3), OPTIONAL: the SD-JWT digest ([RFC-9901] §4.2.2, §4.2.3) of a Disclosure `[salt, context]` of the whole internal context, base64url without padding, SHA-256. The salt is at least 128 bits, fresh for each operation; an operation's attempt and outcome carry the same salted hash. A tool SHOULD use it rather than `action_context_hash` when the host belongs to another organization or the context is drawn from few possible values, and MUST retain the Disclosure if it may be asked to open the hash. A host does not open it and does not require it to match `action_context`.
 - **New vectors:** `vectors/salted-hash.json` (RFC 9901 §4.2.2's own example, and contexts as this specification discloses them), and an event carrying the new field in `vectors/events.json`.
+- **A countersignature whose host key cannot be obtained aborts as `host-unavailable`** (§7.2, §7.6, §10.9). A registry the tool cannot reach establishes neither a valid nor a failed countersignature, so it is a failure to record, not `host-signature-invalid`; a registry reached that holds no entry or a revoked one remains `host-signature-invalid`. Precedence in §7.2 is unchanged.
 
 ### Unchanged
 
