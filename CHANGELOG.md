@@ -4,7 +4,7 @@ All notable changes to the Auditable MCP specification are documented here. The 
 
 This changelog is informative. Normative force (the RFC 2119 keywords) lives only in the specification; the summaries below merely describe it.
 
-## v0.4 - unreleased
+## v0.4 - 2026-10-16
 
 Adds a salted hash of the internal context. Driven by Auditable A2A, where the host that seals a tool's records belongs to another organization: an unsalted `action_context_hash` of a context drawn from few possible values is recovered by hashing each candidate, so it does not keep the context from that host.
 
