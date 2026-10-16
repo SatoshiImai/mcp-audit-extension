@@ -2,7 +2,7 @@
 // methods and an element of the §6.4 `events` array.
 import { z } from 'zod/v4';
 import { RequestSchema, NotificationSchema } from '@modelcontextprotocol/sdk/types.js';
-import { SESSION_ID_PATTERN, UUID_PATTERN } from '../schema/event.js';
+import { dateTimeSchema, SESSION_ID_PATTERN, UUID_PATTERN } from '../schema/event.js';
 
 export const EXTENSION_ID = 'com.timberlandchapel/auditable-mcp';
 
@@ -42,7 +42,7 @@ export const AuditAttemptResultSchema = z.discriminatedUnion('status', [
       status: z.literal('accept'),
       seq: z.number().int().nonnegative(),
       record_hash: z.string().regex(/^[0-9a-f]{64}$/),
-      host_ts: z.iso.datetime(),
+      host_ts: dateTimeSchema,
       previous_hash: z.string().regex(/^[0-9a-f]{64}$/),
       // The countersignature triple (§5.2, §7.1): base64url over the canonical host-assigned fields
       // and log_id, the key id a verifier's registry resolves, and the ledger it names.

@@ -74,7 +74,7 @@ An event is a JSON object [RFC-8259]. Its normative schema is
 | --------------------- | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `id`                  | UUID              | REQUIRED | Tool-generated UUID [RFC-9562] (SHOULD be version 4 or 7; the nil UUID SHOULD NOT be used), fresh for each operation. Correlation key for one operation within its audit session: the `attempt` and its terminal `outcome` share it (§7.2). De-duplication key for attempts (§7.1).                                                                        |
 | `spec_version`        | string            | REQUIRED | MUST be `auditable-mcp/0.4`.                                                                                                                                                                                                                                                                     |
-| `ts`                  | ISO-8601 datetime | REQUIRED | Tool-observed time (advisory; host time is authoritative). MUST be UTC with a `Z` suffix, no numeric offset (per the schema pattern).                                                                                                                                                            |
+| `ts`                  | date-time         | REQUIRED | Tool-observed time (advisory; host time is authoritative). An RFC 3339 date-time [RFC-3339], UTC with a `Z` suffix, seconds required; no numeric offset (per the schema pattern).                                                                                                                 |
 | `session_id`          | UUID              | REQUIRED | The audit session the event belongs to (§6.3): the `session_id` the host issued for the parent `tools/call`, verbatim; never the nil UUID. Scopes `signer_seq` (§7.4) and binds the event to the call it was emitted for, so an event cannot be replayed into another session (§7.1). |
 | `traceparent`         | string            | OPTIONAL | W3C Trace Context [W3C-Trace-Context] `traceparent` header value.                                                                                                                                                                                                                                |
 | `action_type`         | string            | REQUIRED | §4.1.                                                                                                                                                                                                                                                                                            |
@@ -357,7 +357,7 @@ A log that answers a submission with a promise rather than a position can defer 
 
 ```json
 {
-  "host_ts": "<ISO-8601 string assigned by host>",
+  "host_ts": "<RFC 3339 date-time assigned by host>",
   "log_id": "<the ledger's identifier>",
   "previous_hash": "<hex-encoded string>",
   "record_hash": "<hex-encoded string>",
@@ -376,7 +376,7 @@ A host that declares `countersign: "none"` MUST NOT return `host_signature`, `ho
 | `status`         | string  | `"accept"`, `"reject"`, or `"unavailable"`. The discriminator.                                                                                                                                          |
 | `seq`            | integer | REQUIRED when `status` is `"accept"`. Partition-monotonic ledger index assigned by the host (distinct from the tool's `signer_seq`, §4).                                                                |
 | `record_hash`    | string  | REQUIRED when `status` is `"accept"`. Hex-encoded SHA-256 of the sealed record (§8.2).                                                                                                                  |
-| `host_ts`        | string  | REQUIRED when `status` is `"accept"`. Authoritative host timestamp, ISO-8601 UTC with a `Z` suffix (no offset); it is part of the §8.2 preimage, so its exact string is hashed.                         |
+| `host_ts`        | string  | REQUIRED when `status` is `"accept"`. Authoritative host timestamp, an RFC 3339 date-time [RFC-3339], UTC with a `Z` suffix, seconds required (no offset); it is part of the §8.2 preimage, so its exact string is hashed.                         |
 | `previous_hash`  | string  | REQUIRED when `status` is `"accept"`. The preceding record's `record_hash` (64-zero genesis for the first record).                                                                                      |
 | `reason`         | string  | REQUIRED when `status` is `"reject"` or `"unavailable"`. Machine-readable cause (§7.6).                                                                                                                 |
 | `host_signature` | string  | REQUIRED when `status` is `"accept"` and the host declares `countersign: "host"` (§5.2); otherwise absent. Detached countersignature, base64url without padding.                                         |
@@ -528,7 +528,7 @@ To prevent canonicalization attacks, the hash preimage is constructed as a unifi
 ```json
 {
   "event": { ... },
-  "host_ts": "<ISO-8601 string assigned by host>",
+  "host_ts": "<RFC 3339 date-time assigned by host>",
   "previous_hash": "<hex-encoded string>",
   "seq": <integer>
 }
@@ -784,6 +784,7 @@ For example, `example.com/rows-exceeded`. Because every Tier-2 code contains a `
 
 - **[RFC-2119]** Bradner, S., "Key words for use in RFCs to Indicate Requirement Levels", BCP 14, RFC 2119, March 1997.
 - **[RFC-8174]** Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words", BCP 14, RFC 8174, May 2017.
+- **[RFC-3339]** Klyne, G. and C. Newman, "Date and Time on the Internet: Timestamps", RFC 3339, July 2002.
 - **[RFC-8259]** Bray, T., Ed., "The JavaScript Object Notation (JSON) Data Interchange Format", STD 90, RFC 8259, December 2017.
 - **[RFC-8785]** Rundgren, A., "JSON Canonicalization Scheme (JCS)", RFC 8785, June 2020.
 - **[RFC-8032]** Josefsson, S. and I. Liusvaara, "Edwards-Curve Digital Signature Algorithm (EdDSA)", RFC 8032, January 2017.

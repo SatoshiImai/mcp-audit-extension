@@ -17,6 +17,12 @@ export type Outcome = (typeof OUTCOME)[number];
 export const UUID_PATTERN = /^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/;
 export const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
+// An RFC 3339 date-time [RFC-3339] in UTC with a `Z` suffix, seconds required (§4, §7.1). Spelled out
+// rather than z.iso.datetime(), whose pattern makes seconds optional.
+export const DATETIME_PATTERN =
+  /^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?Z$/;
+export const dateTimeSchema = z.stringFormat('date-time', DATETIME_PATTERN);
+
 export const targetResourceSchema = z.strictObject({
   kind: z.string().min(1), // e.g. "table" | "file" | "endpoint"
   ref: z.string().min(1), // e.g. "customers" | "/etc/hosts" | "https://api.stripe.com/..."
@@ -28,7 +34,7 @@ export const auditEventSchema = z
     // --- identity / correlation ---
     id: z.string().regex(UUID_PATTERN), // idempotency, tool-generated
     spec_version: z.literal(SPEC_VERSION),
-    ts: z.iso.datetime(), // tool-observed time (advisory; host time is authoritative)
+    ts: dateTimeSchema, // tool-observed time (advisory; host time is authoritative)
     session_id: z.string().regex(SESSION_ID_PATTERN), // the audit session the host issued for the parent tools/call (§6.3)
     traceparent: z.string().optional(), // W3C Trace Context
 

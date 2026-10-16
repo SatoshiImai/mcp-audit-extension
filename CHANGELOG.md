@@ -11,15 +11,17 @@ Adds a salted hash of the internal context. Driven by Auditable A2A, where the h
 ### Breaking changes
 
 - **`spec_version` advances `auditable-mcp/0.3` -> `auditable-mcp/0.4`.** The version string is part of the canonical event bytes, so all golden digests change. New digests: Level-1 sealed chain `451143ab...`, Level-2 signed chain `f575ea15...`. The event schema is closed and `spec_version` is compared before any audit message (§6.1), so a 0.3 and a 0.4 participant do not negotiate audit; the extension identifier does not change.
+- **`ts` and `host_ts` require seconds** (§4, §7.1). Both are an RFC 3339 date-time ([RFC-3339] §5.6), UTC with a `Z` suffix; the schema pattern no longer accepts a time of hours and minutes only, which RFC 3339 does not define. Golden digests are unaffected: every vector already carries seconds.
 
 ### Added (normative)
 
 - **`action_context_salted_hash`** (§4, §4.3), OPTIONAL: the SD-JWT digest ([RFC-9901] §4.2.2, §4.2.3) of a Disclosure `[salt, context]` of the whole internal context, base64url without padding, SHA-256. The salt is at least 128 bits, fresh for each operation; an operation's attempt and outcome carry the same salted hash. A tool SHOULD use it rather than `action_context_hash` when the host belongs to another organization or the context is drawn from few possible values, and MUST retain the Disclosure if it may be asked to open the hash. A host does not open it and does not require it to match `action_context`.
-- **New vectors:** `vectors/salted-hash.json` (RFC 9901 §4.2.2's own example, and contexts as this specification discloses them), and an event carrying the new field in `vectors/events.json`.
 - **A countersignature whose host key cannot be obtained aborts as `host-unavailable`** (§7.2, §7.6, §10.9). A registry the tool cannot reach establishes neither a valid nor a failed countersignature, so it is a failure to record, not `host-signature-invalid`; a registry reached that holds no entry or a revoked one remains `host-signature-invalid`. Precedence in §7.2 is unchanged.
+- **New vectors:** `vectors/salted-hash.json` (RFC 9901 §4.2.2's own example, and contexts as this specification discloses them), and an event carrying the new field in `vectors/events.json`.
 
 ### Unchanged
 
+- **Records sealed under earlier versions keep their own timestamp pattern**, which made seconds optional; `schema/earlier/` holds it unchanged.
 - **`action_context_hash`** keeps its construction and its `sha256:<hex>` form. Records sealed under earlier versions verify as before; `schema/earlier/0.3/` holds the 0.3 event schema for that purpose.
 
 ## v0.3 - 2026-09-25
