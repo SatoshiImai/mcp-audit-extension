@@ -19,7 +19,7 @@ from auditable_mcp.transport import AttemptResponse, AuditTransport, AuditTransp
 
 logger = logging.getLogger(__name__)
 
-SPEC_VERSION = 'auditable-mcp/0.3'
+SPEC_VERSION = 'auditable-mcp/0.4'
 _BASE_EPOCH_SECONDS = 1000
 
 T = TypeVar('T')

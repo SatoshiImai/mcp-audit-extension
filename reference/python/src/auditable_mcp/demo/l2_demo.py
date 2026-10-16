@@ -38,7 +38,7 @@ def _attempt_for(key: ToolKey, session_id: str, seq: int, ref: str) -> dict:
     """Build and sign an attempt event with an explicit signer_seq."""
     base = {
         'id': f'00000000-0000-4000-8000-{seq + 1:012x}',
-        'spec_version': 'auditable-mcp/0.3',
+        'spec_version': 'auditable-mcp/0.4',
         'ts': '2026-07-16T00:00:00.000Z',
         'session_id': session_id,
         'action_type': 'db.write',
@@ -89,7 +89,7 @@ def main() -> None:
     h3 = AuditHost('acme#adv', L2_CAP, registry)
     unsigned = {
         'id': '00000000-0000-4000-8000-0000000000aa',
-        'spec_version': 'auditable-mcp/0.3',
+        'spec_version': 'auditable-mcp/0.4',
         'ts': '2026-07-16T00:00:00.000Z',
         'session_id': h3.open_session(),
         'action_type': 'db.write',

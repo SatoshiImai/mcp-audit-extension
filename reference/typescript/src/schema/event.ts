@@ -1,10 +1,11 @@
 import { z } from 'zod/v4';
+import { SALTED_HASH_PATTERN } from '../ledger/saltedHash.js';
 
 // Core audit event - one schema for L1 and L2. The trust-establishing fields
 // (signer_seq/key_id/signature) are optional, so an L2 event also validates as an L1 event; an
 // unsigned L1 event is rejected by an L2 host (§7.4).
 
-export const SPEC_VERSION = 'auditable-mcp/0.3';
+export const SPEC_VERSION = 'auditable-mcp/0.4';
 
 // Tool-internal events emit only attempted/success/failed/aborted; denied/expired are
 // host tools/call-boundary outcomes.
@@ -15,6 +16,12 @@ export type Outcome = (typeof OUTCOME)[number];
 // or the nil UUID; a session id is never nil (§6.3).
 export const UUID_PATTERN = /^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/;
 export const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+// An RFC 3339 date-time [RFC-3339] in UTC with a `Z` suffix, seconds required (§4, §7.1). Spelled out
+// rather than z.iso.datetime(), whose pattern makes seconds optional.
+export const DATETIME_PATTERN =
+  /^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?Z$/;
+export const dateTimeSchema = z.stringFormat('date-time', DATETIME_PATTERN);
 
 export const targetResourceSchema = z.strictObject({
   kind: z.string().min(1), // e.g. "table" | "file" | "endpoint"
@@ -27,7 +34,7 @@ export const auditEventSchema = z
     // --- identity / correlation ---
     id: z.string().regex(UUID_PATTERN), // idempotency, tool-generated
     spec_version: z.literal(SPEC_VERSION),
-    ts: z.iso.datetime(), // tool-observed time (advisory; host time is authoritative)
+    ts: dateTimeSchema, // tool-observed time (advisory; host time is authoritative)
     session_id: z.string().regex(SESSION_ID_PATTERN), // the audit session the host issued for the parent tools/call (§6.3)
     traceparent: z.string().optional(), // W3C Trace Context
 
@@ -48,13 +55,16 @@ export const auditEventSchema = z
 
     // --- audit context (confidentiality is the tool's choice; §4.3) ---
     // action_context: cleartext metadata about the internal operation, redacted at the tool's
-    // discretion. action_context_hash: a commitment to the exact internal context. Independent
-    // and both optional; a host must not require them to correspond.
+    // discretion. action_context_hash: the unsalted hash of the exact internal context.
+    // action_context_salted_hash: its salted hash (saltedHash.ts), for a host in another
+    // organization or a context with few possible values. Independent and all optional; a host must
+    // not require them to correspond.
     action_context: z.record(z.string(), z.unknown()).optional(),
     action_context_hash: z
       .string()
       .regex(/^sha256:[0-9a-f]{64}$/)
       .optional(),
+    action_context_salted_hash: z.string().regex(SALTED_HASH_PATTERN).optional(),
 
     // --- Level 2 only (optional; a single schema covers both levels) ---
     signer_seq: z.number().int().nonnegative().optional(), // per (key_id, session_id), from 0 (§7.4)

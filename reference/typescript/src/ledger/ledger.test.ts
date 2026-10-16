@@ -6,7 +6,7 @@ import type { AuditEvent } from '../schema/event.js';
 function ev(id: string, outcome: AuditEvent['outcome']): AuditEvent {
   return {
     id,
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts: new Date(1_000_000).toISOString(),
     session_id: '0198f3a2-5c1e-7000-8000-00000000abc0',
     action_type: 'db.read',

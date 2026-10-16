@@ -65,7 +65,7 @@ async function main(): Promise<void> {
   await tool4.analyze('What were the high-value customer trends in the Tokyo area last month?');
   const replay = {
     id: '00000000-0000-4000-8000-000000000001',
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts: new Date(1001000).toISOString(),
     session_id: session4,
     action_type: 'db.write',

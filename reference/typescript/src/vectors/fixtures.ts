@@ -51,7 +51,7 @@ export const HOST_KEY_SEED_HEX = '02'.repeat(32);
 export const SIGNED_CHAIN_EVENTS: AuditEvent[] = [
   {
     id: pid(10),
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts: '2026-07-15T00:00:10.000Z',
     session_id: SESSION_L2,
     action_type: 'db.write',
@@ -63,7 +63,7 @@ export const SIGNED_CHAIN_EVENTS: AuditEvent[] = [
   },
   {
     id: pid(10),
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts: '2026-07-15T00:00:11.000Z',
     session_id: SESSION_L2,
     action_type: 'db.write',
@@ -83,10 +83,28 @@ const ZERO_HASH = `sha256:${'0'.repeat(64)}`;
 // confidentiality choices (§4.3) in one file.
 export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
   {
+    // §4.3: the salted hash of the context of the salted-hash.json case `context`, beside a redacted
+    // cleartext context. The two need not correspond.
+    name: 'db-read-with-salted-hash',
+    event: {
+      id: pid(9),
+      spec_version: 'auditable-mcp/0.4',
+      ts: '2026-07-15T00:00:09.000Z',
+      session_id: SESSION_ABC,
+      action_type: 'db.read',
+      mutates: false,
+      egress: false,
+      target_resource: { kind: 'table', ref: 'customers' },
+      outcome: 'attempted',
+      action_context: { table: 'customers' },
+      action_context_salted_hash: 'JXkhjdB2aytlBM4xi-ESu61_KmG5g3fY0iCjcL1u-K0',
+    },
+  },
+  {
     name: 'db-read-minimal',
     event: {
       id: pid(1),
-      spec_version: 'auditable-mcp/0.3',
+      spec_version: 'auditable-mcp/0.4',
       ts: '2026-07-15T00:00:01.000Z',
       session_id: SESSION_ABC,
       action_type: 'db.read',
@@ -100,7 +118,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'db-query-with-trace-and-context',
     event: {
       id: pid(2),
-      spec_version: 'auditable-mcp/0.3',
+      spec_version: 'auditable-mcp/0.4',
       ts: '2026-07-15T00:00:02.000Z',
       session_id: SESSION_ABC,
       traceparent: '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01',
@@ -117,7 +135,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'ext-l2-signed-unicode',
     event: {
       id: pid(3),
-      spec_version: 'auditable-mcp/0.3',
+      spec_version: 'auditable-mcp/0.4',
       ts: '2026-07-15T00:00:03.000Z',
       session_id: SESSION_XYZ,
       action_type: 'ext.stripe.refund_charge',
@@ -135,7 +153,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'secret-read',
     event: {
       id: pid(4),
-      spec_version: 'auditable-mcp/0.3',
+      spec_version: 'auditable-mcp/0.4',
       ts: '2026-07-15T00:00:04.000Z',
       session_id: SESSION_ABC,
       action_type: 'secret.read',
@@ -151,7 +169,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'aborted-outcome-host-rejected',
     event: {
       id: pid(5),
-      spec_version: 'auditable-mcp/0.3',
+      spec_version: 'auditable-mcp/0.4',
       ts: '2026-07-15T00:00:05.000Z',
       session_id: SESSION_ABC,
       action_type: 'db.write',
@@ -167,7 +185,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'aborted-outcome-host-uncountersigned',
     event: {
       id: pid(6),
-      spec_version: 'auditable-mcp/0.3',
+      spec_version: 'auditable-mcp/0.4',
       ts: '2026-07-15T00:00:06.000Z',
       session_id: SESSION_ABC,
       action_type: 'db.write',
@@ -183,7 +201,7 @@ export const EVENT_CASES: Array<{ name: string; event: AuditEvent }> = [
     name: 'aborted-outcome-host-signature-invalid',
     event: {
       id: pid(7),
-      spec_version: 'auditable-mcp/0.3',
+      spec_version: 'auditable-mcp/0.4',
       ts: '2026-07-15T00:00:07.000Z',
       session_id: SESSION_ABC,
       action_type: 'db.write',
@@ -208,7 +226,7 @@ export type ErrorCase =
 function attemptBase(overrides: Record<string, unknown>): Record<string, unknown> {
   return {
     id: pid(6),
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts: '2026-07-15T00:00:06.000Z',
     session_id: SESSION_ABC,
     action_type: 'db.write',
@@ -308,7 +326,7 @@ export interface ReplayStep {
 function l2(n: number, outcome: AuditEvent['outcome'], ts: string): AuditEvent {
   return {
     id: pid(n),
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts,
     session_id: SESSION_L2,
     action_type: 'db.write',
@@ -454,7 +472,7 @@ export interface VerifierCase {
 function l1(n: number, outcome: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: pid(n),
-    spec_version: 'auditable-mcp/0.3',
+    spec_version: 'auditable-mcp/0.4',
     ts: '2026-07-15T00:00:30.000Z',
     session_id: SESSION_ABC,
     action_type: 'db.write',

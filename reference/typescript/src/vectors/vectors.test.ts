@@ -151,7 +151,7 @@ describe('conformance vectors - the Level-2 replay window (§7.4)', () => {
   it('reproduces every step against one Level-2 host', () => {
     const registry = new KeyRegistry();
     for (const [keyId, { alg, jwk }] of Object.entries(vector.keys)) registry.registerJwk(keyId, jwk, alg);
-    const host = new AuditHost('replay', { spec_version: 'auditable-mcp/0.3', level: 'L2', attempt: 'request', countersign: 'none' }, registry);
+    const host = new AuditHost('replay', { spec_version: 'auditable-mcp/0.4', level: 'L2', attempt: 'request', countersign: 'none' }, registry);
     host.openSession(vector.steps[0]!.event.session_id);
     for (const step of vector.steps) {
       host.unavailable = !step.host_available;

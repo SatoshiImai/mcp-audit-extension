@@ -51,7 +51,7 @@ def _event(n: int, outcome: str, **extra: object) -> dict:
     """Build a current-version event."""
     return {
         'id': f'00000000-0000-4000-8000-{n:012x}',
-        'spec_version': 'auditable-mcp/0.3',
+        'spec_version': 'auditable-mcp/0.4',
         'ts': '2026-07-15T00:00:01.000Z',
         'session_id': SESSION_A,
         'action_type': 'db.write',
